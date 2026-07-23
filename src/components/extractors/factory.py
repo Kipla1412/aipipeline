@@ -1,10 +1,6 @@
 import logging
 from typing import Any, Dict
-from .rdbms import RDBMSExtractor
-from .gmail import GmailExtractor
-from .arxiv import ArxivExtractor
-from .elasticsearch import ElasticsearchExtractor
-from .opensearch import OpensearchExtractor
+
 logger = logging.getLogger(__name__)
 
 """
@@ -15,43 +11,30 @@ Purpose:
 """
 
 class ExtractorFactory:
-    """
-    Purpose:
-        Factory class to route requests to the correct Extractor 
-        implementation based on type.
-    """
+    _extractors: dict[str, tuple[str, str]] = {
+        "rdbms": ("rdbms", "RDBMSExtractor"),
+        "gmail": ("gmail", "GmailExtractor"),
+        "arxiv": ("arxiv", "ArxivExtractor"),
+        "elasticsearch": ("elasticsearch", "ElasticsearchExtractor"),
+        "opensearch": ("opensearch", "OpensearchExtractor"),
+        "pdf": ("pymu_extractor", "PyMuPdfExtractor"),
+        "image": ("image_analyzer", "ImageAnalyzer"),
+    }
+    _loaded: dict[str, type] = {}
 
     @staticmethod
-    def get_extractor(extractor_type: str, connection: Any, config: Dict[str, Any]):
-        """
-        Purpose: 
-            Returns an initialized extractor instance.
-
-        Args:
-            extractor_type (str): Type of extractor ('rdbms', 'gmail').
-            connection (Any): Active connection object from the connector layer.
-            config (Dict[str, Any]): Extraction logic parameters.
-
-        Returns:
-            BaseExtractor: An instance of a specific extractor.
-
-        Raises:
-            ValueError: If the extractor type is not supported.
-        """
+    def get_extractor(extractor_type: str, connection: Any | None = None, config: Dict[str, Any] | None = None):
         logger.info(f"ExtractorFactory generating '{extractor_type}' extractor.")
         extractor_type = extractor_type.lower().strip()
 
-        if extractor_type == "rdbms":
-            return RDBMSExtractor(connection=connection, config=config)
-        elif extractor_type == "gmail":
-            return GmailExtractor(connection=connection, config=config)
-        elif extractor_type == "arxiv":
-            return ArxivExtractor(connection=connection, config=config)
-        elif extractor_type == "elasticsearch":
-            return ElasticsearchExtractor(connection=connection, config=config)
-        elif extractor_type == "opensearch":
-            return OpensearchExtractor(connection=connection, config=config)
-        else:
-            error_msg = f"Unknown extractor type: {extractor_type}"
-            logger.error(error_msg)
-            raise ValueError(error_msg)
+        if extractor_type not in ExtractorFactory._extractors:
+            raise ValueError(f"Unknown extractor type: {extractor_type}")
+
+        if extractor_type not in ExtractorFactory._loaded:
+            mod_name, cls_name = ExtractorFactory._extractors[extractor_type]
+            mod = __import__(f"src.components.extractors.{mod_name}", fromlist=[cls_name])
+            ExtractorFactory._loaded[extractor_type] = getattr(mod, cls_name)
+
+        if extractor_type in ("pdf", "image"):
+            return ExtractorFactory._loaded[extractor_type](config=config or {})
+        return ExtractorFactory._loaded[extractor_type](connection=connection, config=config or {})

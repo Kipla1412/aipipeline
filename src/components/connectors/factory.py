@@ -1,13 +1,7 @@
 import logging
 from typing import Any
 
-from .rdbms import RDBMSConnector
-from .gmail import GmailConnector
-from .arxiv import ArxivConnector
-from .elasticsearch import ElasticsearchConnector
-from .opensearch import OpensearchConnector
-from .jina import JinaConnector
-from .s3 import S3Connector
+from .base import BaseConnector
 
 logger = logging.getLogger(__name__)
 
@@ -20,47 +14,32 @@ Purpose:
 """
 
 class ConnectorFactory:
-    """
-    Purpose:
-        The Orchestrator class that selects the appropriate connector 
-        class based on user input.
-    """
+    _connectors: dict[str, str] = {
+        "rdbms": "RDBMSConnector",
+        "gmail": "GmailConnector",
+        "arxiv": "ArxivConnector",
+        "elasticsearch": "ElasticsearchConnector",
+        "opensearch": "OpensearchConnector",
+        "jina": "JinaConnector",
+        "s3": "S3Connector",
+        "nas": "NASConnector",
+    }
+    _loaded: dict[str, type] = {}
 
     @classmethod
     def get_connector(cls, connector_type: str, config: Any):
-        """
-        Purpose:
-            Instantiates the requested connector class using the provided config.
-
-        Args:
-            connector_type (str): The type identifier ('rdbms', 'gmail', etc.).
-            config (Any): Configuration data required by the chosen connector.
-
-        Returns:
-            Object: An instance of the requested connector class.
-            
-        Raises:
-            ValueError: If the connector_type is not recognized.
-        """
         logger.info(f"Factory creating connector for: {connector_type}")
-        
-        connector_type = connector_type.lower()
-        
-        if connector_type == "rdbms":
-            return RDBMSConnector(config=config)
-        elif connector_type == "gmail":
-            return GmailConnector(config=config)
-        elif connector_type == "arxiv":
-            return ArxivConnector(config=config)
-        elif connector_type == "elasticsearch":
-            return ElasticsearchConnector(config=config)
-        elif connector_type == "opensearch":
-            return OpensearchConnector(config=config)
-        elif connector_type == "jina":
-            return JinaConnector(config=config)
-        elif connector_type == "s3":
-            return S3Connector(config=config)
-        else:
-            error_msg = f"Unsupported connector type: {connector_type}"
-            logger.error(error_msg)
-            raise ValueError(error_msg)
+        connector_type = connector_type.lower().strip()
+
+        if connector_type not in cls._connectors:
+            raise ValueError(f"Unknown connector type: {connector_type}")
+
+        if connector_type not in cls._loaded:
+            mod_name = connector_type
+            try:
+                mod = __import__(f"src.components.connectors.{mod_name}", fromlist=[cls._connectors[connector_type]])
+                cls._loaded[connector_type] = getattr(mod, cls._connectors[connector_type])
+            except ImportError as e:
+                raise ImportError(f"Failed to load connector '{connector_type}': {e}") from e
+
+        return cls._loaded[connector_type](config=config)

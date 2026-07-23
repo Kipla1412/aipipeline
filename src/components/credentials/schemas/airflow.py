@@ -7,7 +7,7 @@ class AirflowConnectionSchema(BaseModel):
     """
     # This tells Pydantic it's okay if we use names that might overlap with internal protected names.
 
-    model_config = ConfigDict(protected_namespaces=(), extra="forbid")
+    model_config = ConfigDict(protected_namespaces=(), extra="allow")
     host: Optional[str] = None
     port: Optional[int] = None
     login: Optional[str] = None

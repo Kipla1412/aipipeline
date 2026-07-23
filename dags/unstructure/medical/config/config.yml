@@ -1,0 +1,47 @@
+# Medical Pipeline Configuration
+# DAG: dags/unstructure/medical/medical.py
+
+pipeline:
+  description: "NAS → PDF Extract → LLM Classify → LLM Transform → Wiki → Graph"
+  schedule: "@hourly"
+  retries: 1
+  retry_delay_minutes: 5
+
+nas:
+  directory: "/home/kipla/aipipeline/aiplatform/storage/pdf"
+  allowed_extensions: [".pdf"]
+  stability_delay_seconds: 1.0
+  stability_retries: 5
+
+extraction:
+  extract_images: true
+  image_output_dir: "/home/kipla/aipipeline/aiplatform/storage/images"
+
+classification:
+  model: "gpt-4o-mini"
+  prompt_file: "prompts/report_classification.md"
+
+transformation:
+  model: "gpt-4o-mini"
+  prompt_file: "prompts/clinical_extraction.md"
+
+image_analysis:
+  model: "gpt-4o"
+  prompt_file: "prompts/image_analysis.md"
+
+wiki:
+  output_dir: "/home/kipla/aipipeline/aiplatform/storage/wiki"
+  consolidate_medications: true
+  create_report_dirs_on_demand: true
+
+metadata:
+  backend: "json"
+  index_path: "/home/kipla/aipipeline/aiplatform/storage/metadata/index.json"
+
+graph:
+  engine: "graphifyy"
+
+openai:
+  connection_id: "openai"
+  timeout: 120
+  max_retries: 3

@@ -1,33 +1,32 @@
 import logging
+import importlib
 
 """
 Connectors Package
 ==================
 Purpose:
     A unified interface for connecting to various data sources.
-
 """
 
-# Import the Factory and Connectors for easy external access
 from .factory import ConnectorFactory
-from .rdbms import RDBMSConnector
-from .gmail import GmailConnector
-from .arxiv import ArxivConnector
+from .base import BaseConnector
 from .jina import JinaConnector
-from .elasticsearch import ElasticsearchConnector
-from .opensearch import OpensearchConnector
-from .s3 import S3Connector
 
-# Define the public API for the package
-__all__ = [
-    "ConnectorFactory",
-    "RDBMSConnector",
-    "GmailConnector",
-    "ArxivConnector",
-    "ElasticsearchConnector",
-    "OpensearchConnector",
-    "S3Connector",
-]
+_OPTIONAL = {
+    "RDBMSConnector": "rdbms",
+    "GmailConnector": "gmail",
+    "ArxivConnector": "arxiv",
+    "ElasticsearchConnector": "elasticsearch",
+    "OpensearchConnector": "opensearch",
+    "S3Connector": "s3",
+}
+for _cls, _mod in _OPTIONAL.items():
+    try:
+        m = importlib.import_module(f".{_mod}", __package__)
+        globals()[_cls] = getattr(m, _cls)
+    except (ImportError, AttributeError):
+        globals()[_cls] = None
 
-# Set a default logger for the package to prevent "No handler found" warnings
+__all__ = ["ConnectorFactory", "BaseConnector", "JinaConnector"] + list(_OPTIONAL.keys())
+
 logging.getLogger(__name__).addHandler(logging.NullHandler())

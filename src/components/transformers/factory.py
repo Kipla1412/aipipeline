@@ -1,10 +1,6 @@
 import logging
 from typing import Any, Dict
 
-from .document import DocumentTransformer
-from .json_transformer import JsonTransformer
-from .arxiv import PDFTransformer, TextChunker
-
 logger = logging.getLogger(__name__)
 
 """
@@ -14,45 +10,30 @@ Purpose:
     Provides a universal entry point for creating specific transformer instances.
 """
 
-
 class TransformerFactory:
-    """
-    Purpose:
-        Factory class to route data to the correct Transformer implementation.
-    """
+    _transformers: dict[str, tuple[str, str]] = {
+        "document": ("document", "DocumentTransformer"),
+        "json": ("json_transformer", "JsonTransformer"),
+        "chunker": ("arxiv", "TextChunker"),
+        "pdf": ("arxiv", "PDFTransformer"),
+        "medical_classifier": ("medical_classifier", "MedicalClassifier"),
+        "medical": ("medical_transformer", "MedicalTransformer"),
+    }
+    _loaded: dict[str, type] = {}
 
     @staticmethod
-    def get_transformer(transformer_type: str, data: Any, config: Dict[str, Any]):
-        """
-        Purpose: Instantiates the requested transformer based on type.
-
-        Args:
-            transformer_type (str): Type of transformation ('document' or 'json').
-            data (Any): The dataset to be transformed.
-            config (Dict[str, Any]): Parameters for the transformer.
-
-        Returns:
-            BaseTransformer: An instance of a specific transformer.
-
-        Raises:
-            ValueError: If an unknown transformer type is provided.
-        """
+    def get_transformer(transformer_type: str, data: Any | None = None, config: Dict[str, Any] | None = None):
         logger.info(f"TransformerFactory creating transformer for type: {transformer_type}")
         transformer_type = transformer_type.lower().strip()
 
-        if transformer_type == "document":
-            return DocumentTransformer(data, config)
-        
-        elif transformer_type == "json":
-            return JsonTransformer(data, config)
-        
-        elif transformer_type == "chunker":
-            return TextChunker(data, config)
-        
-        elif transformer_type == "pdf":
-            return PDFTransformer(data, config)
-        
-        else:
-            error_msg = f"Unknown transformer type: {transformer_type}"
-            logger.error(error_msg)
-            raise ValueError(error_msg)
+        if transformer_type not in TransformerFactory._transformers:
+            raise ValueError(f"Unknown transformer type: {transformer_type}")
+
+        if transformer_type not in TransformerFactory._loaded:
+            mod_name, cls_name = TransformerFactory._transformers[transformer_type]
+            mod = __import__(f"src.components.transformers.{mod_name}", fromlist=[cls_name])
+            TransformerFactory._loaded[transformer_type] = getattr(mod, cls_name)
+
+        if transformer_type in ("medical_classifier", "medical"):
+            return TransformerFactory._loaded[transformer_type](config=config or {})
+        return TransformerFactory._loaded[transformer_type](data, config or {})
