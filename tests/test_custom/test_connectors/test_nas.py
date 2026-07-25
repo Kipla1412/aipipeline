@@ -10,7 +10,7 @@ class TestNASConfig:
     def test_valid_config(self, tmp_path):
         config = NASConfig(nas_dir_path=str(tmp_path))
         assert str(config.nas_dir_path) == str(tmp_path)
-        assert config.allowed_extensions == [".pdf"]
+        assert config.allowed_extensions == [".pdf", ".dcm"]
 
     def test_custom_extensions(self, tmp_path):
         config = NASConfig(nas_dir_path=str(tmp_path), allowed_extensions=[".txt", ".md"])

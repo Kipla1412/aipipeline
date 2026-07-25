@@ -8,8 +8,8 @@ pipeline:
   retry_delay_minutes: 5
 
 nas:
-  directory: "/home/kipla/aipipeline/aiplatform/storage/pdf"
-  allowed_extensions: [".pdf"]
+  directory: "/home/kipla/aipipeline/aiplatform/storage/raw"
+  allowed_extensions: [".pdf", ".dcm"]
   stability_delay_seconds: 1.0
   stability_retries: 5
 

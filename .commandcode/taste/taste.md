@@ -1,0 +1,2 @@
+- Expects pipeline processing to be idempotent — re-running the pipeline should skip already-processed files, not reprocess them. Confidence: 0.90
+- Prefers generalizable matching logic (e.g., `\S+` for any file extension) over hardcoded assumptions (e.g., `.pdf` regex that excludes `.dcm`). Confidence: 0.80

@@ -18,6 +18,7 @@ class ExtractorFactory:
         "elasticsearch": ("elasticsearch", "ElasticsearchExtractor"),
         "opensearch": ("opensearch", "OpensearchExtractor"),
         "pdf": ("pymu_extractor", "PyMuPdfExtractor"),
+        "dicom": ("dicom", "DicomExtractor"),
         "image": ("image_analyzer", "ImageAnalyzer"),
     }
     _loaded: dict[str, type] = {}

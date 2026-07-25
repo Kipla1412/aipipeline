@@ -168,7 +168,15 @@ class ReportComposer:
         patient: str,
         reports: list[dict[str, str]],
     ) -> str:
-        reports.sort(key=lambda r: r.get("date", ""))
+        def _sort_key(report: dict[str, str]) -> tuple[str, str]:
+            date = report.get("date") or ""
+            if isinstance(date, str):
+                normalized = date.strip()
+            else:
+                normalized = ""
+            return (normalized[:4] if len(normalized) >= 4 else "", normalized)
+
+        reports.sort(key=_sort_key)
 
         lines = [f"# {patient} — Medical Timeline", ""]
 
@@ -178,7 +186,9 @@ class ReportComposer:
 
         current_year: str | None = None
         for r in reports:
-            date = r.get("date", "Unknown")
+            date = r.get("date") or "Unknown"
+            if not isinstance(date, str):
+                date = str(date)
             year = date[:4] if date != "Unknown" and len(date) >= 4 else "Unknown"
             if year != current_year:
                 current_year = year
@@ -230,13 +240,52 @@ class ReportComposer:
             lines.append("## Images")
             lines.append("")
             for img in images:
-                img_name = Path(img).name
+                if isinstance(img, dict):
+                    img_name = Path(img["path"]).name
+                else:
+                    img_name = Path(img).name
                 lines.append(f"![{img_name}](../Images/{report_dir}/{img_name})")
             lines.append("")
 
         lines.append("## Summary")
         lines.append("")
         lines.append(document.get("summary", "No summary available."))
+
+        sections = document.get("sections", []) or []
+        if sections:
+            lines.append("")
+            lines.append("## Test Results / Clinical Data")
+            lines.append("")
+            if isinstance(sections, dict):
+                for key, val in sections.items():
+                    lines.append(f"- **{key}:** {val}")
+            elif isinstance(sections, list):
+                for s in sections:
+                    if isinstance(s, dict):
+                        h = s.get("heading", s.get("key", ""))
+                        c = s.get("content", s.get("value", ""))
+                        lines.append(f"- **{h}:** {c}")
+                    else:
+                        lines.append(f"- {s}")
+            else:
+                lines.append(str(sections))
+
+        imaging = document.get("imaging")
+        if imaging:
+            lines.append("")
+            lines.append("## Imaging Study")
+            lines.append("")
+            for key, label in [
+                ("modality", "Modality"), ("series_description", "Series Description"),
+                ("manufacturer", "Manufacturer"), ("model_name", "Model"),
+                ("rows", "Rows"), ("columns", "Columns"),
+                ("pixel_spacing", "Pixel Spacing"), ("slice_thickness", "Slice Thickness"),
+                ("acquisition_date", "Acquisition Date"), ("institution_name", "Institution"),
+                ("study_uid", "Study UID"), ("series_uid", "Series UID"),
+            ]:
+                val = imaging.get(key) if isinstance(imaging, dict) else getattr(imaging, key, None)
+                if val is not None:
+                    lines.append(f"- **{label}:** {val}")
 
         return "\n".join(lines) + "\n"
 

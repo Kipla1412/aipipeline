@@ -8,5 +8,14 @@ Purpose:
 
 from .factory import TransformerFactory
 from .base import BaseTransformer
+from .schemas import MedicalSchema, MedicalTransformerConfig, Vitals, Section, ImagingStudy
 
-__all__ = ["TransformerFactory", "BaseTransformer"]
+__all__ = [
+    "TransformerFactory",
+    "BaseTransformer",
+    "MedicalSchema",
+    "MedicalTransformerConfig",
+    "Vitals",
+    "Section",
+    "ImagingStudy",
+]

@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from src.components.utils.config import PipelineConfig
 from src.components.connectors.nas import NASConnector
 from src.components.extractors.pymu_extractor import PyMuPdfExtractor
+from src.components.extractors.dicom import DicomExtractor
 from src.components.extractors.image_analyzer import ImageAnalyzer
 from src.components.transformers.medical_transformer import MedicalTransformer
 from src.components.transformers.medical_classifier import MedicalClassifier
@@ -39,7 +40,7 @@ def _get_processed_files() -> set[str]:
     if not log.exists():
         return set()
     text = log.read_text(encoding="utf-8")
-    return set(re.findall(r"\*\*Source File:\*\*\s*\n\s*\n\s+(.+\.pdf)", text))
+    return set(re.findall(r"\*\*Source File:\*\*\s*\n\s*\n\s+(\S+)", text))
 
 
 def _make_document_id(filepath: Path) -> str:
@@ -66,7 +67,8 @@ async def main():
         await connector.close()
         return
 
-    extractor = PyMuPdfExtractor(settings.get_extractor_config())
+    pdf_extractor = PyMuPdfExtractor(settings.get_extractor_config())
+    dicom_extractor = DicomExtractor({"output_image_dir": str(settings.EXTRACTED_IMAGE_DIR), "extract_preview": True})
     transformer = MedicalTransformer(settings.get_transformer_config())
     image_analyzer = ImageAnalyzer({"api_key": settings.OPENAI_API_KEY})
     classifier = MedicalClassifier({"api_key": settings.OPENAI_API_KEY, "model": "gpt-4o-mini"})
@@ -79,17 +81,26 @@ async def main():
 
     for filepath in new_files:
         print(f"Processing: {filepath.name}")
-        extracted = extractor.extract(str(filepath))
+
+        suffix = filepath.suffix.lower()
+        is_dicom = suffix in (".dcm", ".dicom")
+
+        if is_dicom:
+            extracted = dicom_extractor.extract(str(filepath))
+        else:
+            extracted = pdf_extractor.extract(str(filepath))
+
         print(f"  Extracted: {len(extracted.markdown)} chars, {len(extracted.images)} images")
 
         if extracted.images:
             print(f"  Analyzing {len(extracted.images)} image(s)...")
-            image_descriptions = await image_analyzer.extract(extracted.images)
+            image_paths = [img if isinstance(img, str) else img["path"] for img in extracted.images]
+            image_descriptions = await image_analyzer.extract(image_paths)
             full_text = image_descriptions + "\n\n" + extracted.markdown
         else:
             full_text = extracted.markdown
 
-        document = await transformer.transform(full_text)
+        document = await transformer.transform(full_text, dicom_metadata=extracted.dicom_metadata)
         document["document_id"] = _make_document_id(filepath)
         document["report_type"] = await classifier.classify(extracted.markdown)
         document["images"] = extracted.images

@@ -262,13 +262,17 @@ class WikiFileManager:
             return None
         return path.read_text(encoding="utf-8")
 
-    def copy_images(self, patient_slug: str, report_type: str, images: list[str]) -> int:
+    def copy_images(self, patient_slug: str, report_type: str, images: list[str | dict[str, str]]) -> int:
         import shutil
         report_dir = _REPORT_TYPE_DIR.get(report_type, "Other")
         dest_dir = self.base_dir / "Patients" / patient_slug / "Images" / report_dir
         dest_dir.mkdir(parents=True, exist_ok=True)
         count = 0
         for img_src in images:
+            if isinstance(img_src, dict):
+                img_src = img_src.get("path")
+            if not img_src:
+                continue
             src = Path(img_src)
             if not src.exists():
                 logger.warning(f"Image not found: {src}")

@@ -64,14 +64,15 @@ def _get_processed_files(wiki_dir: str) -> set:
     if not log.exists():
         return set()
     text = log.read_text(encoding="utf-8")
-    return set(re.findall(r"\*\*Source File:\*\*\s*\n\s*\n\s+(.+\.pdf)", text))
+    return set(re.findall(r"\*\*Source File:\*\*\s*\n\s*\n\s+(\S+)", text))
 
 
 def scan_nas(**kwargs: Any) -> List[str]:
-    cfg = load_config().get("nas", {})
-    pdf_dir = Path(cfg.get("directory", "/opt/airflow/data/storage/pdf"))
+    cfg = load_config()
+    nas_cfg = cfg.get("nas", {})
+    pdf_dir = Path(nas_cfg.get("directory", "/opt/airflow/data/storage/pdf"))
     wiki_dir = cfg.get("wiki", {}).get("output_dir", "/opt/airflow/data/storage/wiki")
-    ext = cfg.get("allowed_extensions", [".pdf"])
+    ext = nas_cfg.get("allowed_extensions", [".pdf"])
     config = {"nas_dir_path": str(pdf_dir), "allowed_extensions": ext}
     kwargs["ti"].xcom_push(key="pdf_dir", value=str(pdf_dir))
     connector = NASConnector(config)
