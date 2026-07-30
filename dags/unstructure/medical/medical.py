@@ -64,7 +64,7 @@ def _get_processed_files(wiki_dir: str) -> set:
     if not log.exists():
         return set()
     text = log.read_text(encoding="utf-8")
-    return set(re.findall(r"\*\*Source File:\*\*\s*\n\s*\n\s+(\S+)", text))
+    return set(re.findall(r"\*\*Source File:\*\*\s*\n\s*\n\s+(.+)", text))
 
 
 def scan_nas(**kwargs: Any) -> List[str]:

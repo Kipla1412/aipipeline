@@ -22,6 +22,12 @@ class PipelineConfig(BaseSettings):
     NAS_ALLOWED_EXTENSIONS: List[str] = Field([".pdf", ".dcm"])
     NAS_STABILITY_DELAY: float = Field(1.0)
     NAS_STABILITY_RETRIES: int = Field(5)
+    ARANGO_HOST: str = Field("")
+    ARANGO_PORT: int = Field(8529)
+    ARANGO_USERNAME: str = Field("")
+    ARANGO_PASSWORD: str = Field("")
+    ARANGO_DATABASE: str = Field("medical_graph")
+    ARANGO_VERIFY_CERTS: bool = Field(True)
 
     @model_validator(mode="after")
     def _fallback_api_key(self):
@@ -49,3 +55,17 @@ class PipelineConfig(BaseSettings):
 
     def get_metadata_config(self) -> dict:
         return {"backend": self.METADATA_REPO_BACKEND, "index_path": str(self.METADATA_INDEX_PATH)}
+
+    def get_arango_config(self) -> dict:
+        return {
+            "host": self.ARANGO_HOST,
+            "port": self.ARANGO_PORT,
+            "username": self.ARANGO_USERNAME,
+            "password": self.ARANGO_PASSWORD,
+            "database": self.ARANGO_DATABASE,
+            "verify_certs": self.ARANGO_VERIFY_CERTS,
+        }
+
+    @property
+    def arango_enabled(self) -> bool:
+        return bool(self.ARANGO_HOST and self.ARANGO_USERNAME and self.ARANGO_PASSWORD)

@@ -1,3 +1,4 @@
+# - Expects pipeline processing to be idempotent — re-running the pipeline should skip already-processed files, not reprocess them. Confidence: 0.90
 - Expects pipeline processing to be idempotent — re-running the pipeline should skip already-processed files, not reprocess them. Confidence: 0.90
 - Prefers generalizable matching logic (e.g., `.+` to capture full filenames including spaces, rather than `\S+` which breaks on multi-word names) over hardcoded assumptions (e.g., `.pdf` regex that excludes `.dcm`). Confidence: 0.85
 - Expects standalone diagnostic scripts alongside platform components to verify infrastructure connectivity before running full pipelines — e.g., a `check_arango.py` script that inspects collections and confirms data was written. Confidence: 0.80

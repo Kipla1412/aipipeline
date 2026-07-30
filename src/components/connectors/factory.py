@@ -23,6 +23,7 @@ class ConnectorFactory:
         "jina": "JinaConnector",
         "s3": "S3Connector",
         "nas": "NASConnector",
+        "arango": "ArangoDBConnector",
     }
     _loaded: dict[str, type] = {}
 

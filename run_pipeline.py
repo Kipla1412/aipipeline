@@ -28,6 +28,9 @@ from src.components.transformers.medical_transformer import MedicalTransformer
 from src.components.transformers.medical_classifier import MedicalClassifier
 from src.components.generators.wiki_generator_wrapper import WikiGenerator
 from src.components.graphbuilder.graphify_builder import GraphifyyBuilder
+from src.components.graphbuilder.medical_graph_builder import MedicalGraphBuilder
+from src.components.graphbuilder.repository.arango_repository import ArangoGraphRepository
+from src.components.connectors.arango import ArangoDBConnector
 from src.components.metadata.json_repository import JsonMetadataRepository
 from src.components.metadata.generator import MetadataGenerator
 
@@ -40,7 +43,7 @@ def _get_processed_files() -> set[str]:
     if not log.exists():
         return set()
     text = log.read_text(encoding="utf-8")
-    return set(re.findall(r"\*\*Source File:\*\*\s*\n\s*\n\s+(\S+)", text))
+    return set(re.findall(r"\*\*Source File:\*\*\s*\n\s*\n\s+(.+)", text))
 
 
 def _make_document_id(filepath: Path) -> str:
@@ -76,6 +79,11 @@ async def main():
     metadata_gen = MetadataGenerator()
     repo = JsonMetadataRepository(settings.METADATA_INDEX_PATH)
     graph = GraphifyyBuilder({"target_dir": str(settings.WIKI_OUTPUT_DIR)})
+    arango_repo = None
+    if settings.arango_enabled:
+        arango_connector = ArangoDBConnector(settings.get_arango_config())
+        arango_repo = ArangoGraphRepository(arango_connector, database=settings.ARANGO_DATABASE)
+        print("ArangoDB: enabled")
 
     all_documents: list[dict] = []
 
@@ -121,7 +129,14 @@ async def main():
 
     print("\nBuilding knowledge graph...")
     graph.build_from_documents(all_documents)
+    if arango_repo:
+        print("Saving to ArangoDB...")
+        builder = MedicalGraphBuilder()
+        arango_graph = builder.build(all_documents)
+        arango_repo.save(arango_graph)
+        print("ArangoDB: saved")
     print("Done.\n")
+    
 
 
 if __name__ == "__main__":
