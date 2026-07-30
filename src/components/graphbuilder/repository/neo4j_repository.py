@@ -7,6 +7,7 @@ All writes are idempotent — running multiple times never duplicates nodes/edge
 
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 from typing import Any
@@ -64,7 +65,7 @@ class Neo4jGraphRepository(BaseGraphRepository):
                     norm_label=node.norm_label,
                     source_file=node.source_file,
                     captured_at=node.captured_at,
-                    metadata=node.metadata or {},
+                    metadata=json.dumps(node.metadata or {}),
                 )
 
             for edge in graph.edges:
@@ -124,7 +125,7 @@ class Neo4jGraphRepository(BaseGraphRepository):
                             norm_label=n.get("norm_label", ""),
                             source_file=n.get("source_file"),
                             captured_at=n.get("captured_at"),
-                            metadata=n.get("metadata", {}),
+                            metadata=json.loads(n.get("metadata", "{}")),
                         )
                     )
                 r = record["r"]

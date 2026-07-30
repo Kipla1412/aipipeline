@@ -35,7 +35,11 @@ from src.components.generators.wiki_generator_wrapper import WikiGenerator
 from src.components.metadata.json_repository import JsonMetadataRepository
 from src.components.metadata.generator import MetadataGenerator
 from src.components.graphbuilder.graphify_builder import GraphifyyBuilder
+from src.components.graphbuilder.medical_graph_builder import MedicalGraphBuilder
+from src.components.graphbuilder.repository.neo4j_repository import Neo4jGraphRepository
+from src.components.connectors.neo4j import Neo4jConnector
 from src.components.utils.reader import load_yml
+from src.components.utils.config import PipelineConfig
 
 logger = logging.getLogger(__name__)
 
@@ -165,6 +169,13 @@ def generate_wiki_and_metadata(**kwargs: Any) -> None:
     repo = JsonMetadataRepository(Path(meta_path))
     graph = GraphifyyBuilder({"target_dir": str(wiki_dir)})
 
+    neo4j_cfg = cfg.get("neo4j", {})
+    neo4j_repo = None
+    if neo4j_cfg.get("uri"):
+        neo4j_connector = Neo4jConnector(neo4j_cfg)
+        neo4j_repo = Neo4jGraphRepository(neo4j_connector)
+        logger.info("Neo4j: enabled")
+
     async def _run():
         for doc in docs:
             wiki.generate(doc, doc.get("source_filename", ""))
@@ -173,7 +184,12 @@ def generate_wiki_and_metadata(**kwargs: Any) -> None:
         await repo._flush()
         try:
             graph.build_from_documents(docs)
-            logger.info("Knowledge graph built.")
+            logger.info("Knowledge graph built (JSON).")
+            if neo4j_repo:
+                builder = MedicalGraphBuilder()
+                neo4j_graph = builder.build(docs)
+                neo4j_repo.save(neo4j_graph)
+                logger.info("Knowledge graph saved to Neo4j.")
         except Exception as e:
             logger.error(f"Graph build failed: {e}")
 
