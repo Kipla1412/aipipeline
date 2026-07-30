@@ -30,7 +30,9 @@ from src.components.generators.wiki_generator_wrapper import WikiGenerator
 from src.components.graphbuilder.graphify_builder import GraphifyyBuilder
 from src.components.graphbuilder.medical_graph_builder import MedicalGraphBuilder
 from src.components.graphbuilder.repository.arango_repository import ArangoGraphRepository
+from src.components.graphbuilder.repository.neo4j_repository import Neo4jGraphRepository
 from src.components.connectors.arango import ArangoDBConnector
+from src.components.connectors.neo4j import Neo4jConnector
 from src.components.metadata.json_repository import JsonMetadataRepository
 from src.components.metadata.generator import MetadataGenerator
 
@@ -84,6 +86,11 @@ async def main():
         arango_connector = ArangoDBConnector(settings.get_arango_config())
         arango_repo = ArangoGraphRepository(arango_connector, database=settings.ARANGO_DATABASE)
         print("ArangoDB: enabled")
+    neo4j_repo = None
+    if settings.neo4j_enabled:
+        neo4j_connector = Neo4jConnector(settings.get_neo4j_config())
+        neo4j_repo = Neo4jGraphRepository(neo4j_connector)
+        print("Neo4j: enabled")
 
     all_documents: list[dict] = []
 
@@ -129,12 +136,17 @@ async def main():
 
     print("\nBuilding knowledge graph...")
     graph.build_from_documents(all_documents)
-    if arango_repo:
-        print("Saving to ArangoDB...")
+    if arango_repo or neo4j_repo:
         builder = MedicalGraphBuilder()
-        arango_graph = builder.build(all_documents)
-        arango_repo.save(arango_graph)
-        print("ArangoDB: saved")
+        db_graph = builder.build(all_documents)
+        if arango_repo:
+            print("Saving to ArangoDB...")
+            arango_repo.save(db_graph)
+            print("ArangoDB: saved")
+        if neo4j_repo:
+            print("Saving to Neo4j...")
+            neo4j_repo.save(db_graph)
+            print("Neo4j: saved")
     print("Done.\n")
     
 

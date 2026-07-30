@@ -24,6 +24,7 @@ class ConnectorFactory:
         "s3": "S3Connector",
         "nas": "NASConnector",
         "arango": "ArangoDBConnector",
+        "neo4j": "Neo4jConnector",
     }
     _loaded: dict[str, type] = {}
 

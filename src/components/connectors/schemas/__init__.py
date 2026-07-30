@@ -7,6 +7,7 @@ from .jina import JinaConfig
 from .api import ApiConfig
 from .s3 import S3Config
 from .arango import ArangoDBConfig
+from .neo4j import Neo4jConfig
 
 __all__ = [
     "ElasticsearchConfig",
@@ -18,4 +19,5 @@ __all__ = [
     "ApiConfig",
     "S3Config",
     "ArangoDBConfig",
+    "Neo4jConfig",
 ]

@@ -32,6 +32,7 @@ print("PATIENTS → DISEASES")
 if db.has_collection("patients") and db.has_collection("edges"):
     for patient in db.collection("patients"):
         aql = """
+            WITH patients, diseases, edges
             FOR v, e IN 1..1 OUTBOUND @patient_id edges
             FILTER e.relation == 'has_disease'
             RETURN v.label
@@ -46,6 +47,7 @@ print("PATIENTS → DOCTORS")
 if db.has_collection("patients"):
     for patient in db.collection("patients"):
         aql = """
+            WITH patients, doctors, edges
             FOR v, e IN 1..1 OUTBOUND @patient_id edges
             FILTER e.relation == 'treated_by'
             RETURN v.label
@@ -60,13 +62,14 @@ print("FULL PATIENT SUMMARY (graph traversal)")
 if db.has_collection("patients"):
     for patient in db.collection("patients"):
         print(f"\n  {patient['label']}")
-        for rel, label in [
-            ("has_disease", "Diseases"),
-            ("has_medication", "Medications"),
-            ("treated_by", "Doctor"),
-            ("admitted_at", "Hospital"),
+        for rel, label, with_col in [
+            ("has_disease", "Diseases", "diseases"),
+            ("has_medication", "Medications", "medications"),
+            ("treated_by", "Doctor", "doctors"),
+            ("admitted_at", "Hospital", "hospitals"),
         ]:
             aql = f"""
+                WITH patients, {with_col}, edges
                 FOR v, e IN 1..1 OUTBOUND @pid edges
                 FILTER e.relation == '{rel}'
                 RETURN v.label
@@ -80,11 +83,13 @@ if db.has_collection("patients"):
 print("\n" + "=" * 50)
 print("DISEASE FREQUENCY")
 aql = """
+    WITH edges
     FOR edge IN edges
     FILTER edge.relation == 'has_disease'
-    COLLECT disease = edge.target WITH COUNT INTO count
-    FOR node IN DOCUMENT(disease)
-    RETURN {disease: node.label, count: count}
+    COLLECT disease_key = edge._to WITH COUNT INTO count
+    SORT count DESC
+    LET disease = DOCUMENT(disease_key)
+    RETURN {disease: disease.label, count: count}
 """
 for d in db.aql.execute(aql):
     print(f"  {d['disease']}: {d['count']} patient(s)")

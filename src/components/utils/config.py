@@ -28,6 +28,10 @@ class PipelineConfig(BaseSettings):
     ARANGO_PASSWORD: str = Field("")
     ARANGO_DATABASE: str = Field("medical_graph")
     ARANGO_VERIFY_CERTS: bool = Field(True)
+    NEO4J_URI: str = Field("")
+    NEO4J_USERNAME: str = Field("")
+    NEO4J_PASSWORD: str = Field("")
+    NEO4J_DATABASE: str = Field("neo4j")
 
     @model_validator(mode="after")
     def _fallback_api_key(self):
@@ -69,3 +73,15 @@ class PipelineConfig(BaseSettings):
     @property
     def arango_enabled(self) -> bool:
         return bool(self.ARANGO_HOST and self.ARANGO_USERNAME and self.ARANGO_PASSWORD)
+
+    def get_neo4j_config(self) -> dict:
+        return {
+            "uri": self.NEO4J_URI,
+            "username": self.NEO4J_USERNAME,
+            "password": self.NEO4J_PASSWORD,
+            "database": self.NEO4J_DATABASE,
+        }
+
+    @property
+    def neo4j_enabled(self) -> bool:
+        return bool(self.NEO4J_URI and self.NEO4J_USERNAME and self.NEO4J_PASSWORD)
