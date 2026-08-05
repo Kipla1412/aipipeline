@@ -8,12 +8,21 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Any
 
 from .models import Graph, GraphNode, GraphEdge
 
 logger = logging.getLogger(__name__)
+
+_REPORT_TYPE_DIR: dict[str, str] = {
+    "mri": "MRI", "ct": "CT", "xray": "X-Ray", "ultrasound": "Ultrasound",
+    "ecg": "ECG", "blood_report": "Blood", "lab_report": "LabReports",
+    "prescription": "Prescription", "discharge_summary": "DischargeSummary",
+    "consultation": "Consultation", "operative_report": "OperativeReports",
+    "histopathology": "Pathology", "microbiology": "Microbiology", "other": "Other",
+}
 
 
 class MedicalGraphBuilder:
@@ -53,6 +62,34 @@ class MedicalGraphBuilder:
                 edges.append(self._link(pid, hid, "admitted_at", source_filename))
                 if doctor:
                     edges.append(self._link(did, hid, "works_at", source_filename))
+
+            # Report node
+            doc_id = doc.get("document_id", "")
+            if doc_id:
+                rid = self._make_id(doc_id)
+                report_type = doc.get("report_type", "other")
+                report_date = doc.get("report_date", "")
+                wiki_path = self._build_report_path(
+                    patient, doc_id, report_type, doc.get("source_filename", "")
+                )
+                nodes[rid] = GraphNode(
+                    id=rid,
+                    label=doc_id,
+                    file_type="report",
+                    source_file=wiki_path,
+                    captured_at=report_date,
+                    norm_label=doc_id.lower(),
+                    metadata={
+                        "report_type": report_type,
+                        "report_date": report_date,
+                        "source_filename": doc.get("source_filename", ""),
+                    },
+                )
+                edges.append(self._link(pid, rid, "has_report", source_filename))
+                if doctor:
+                    edges.append(self._link(rid, did, "generated_by", source_filename))
+                if hospital:
+                    edges.append(self._link(rid, hid, "generated_at", source_filename))
 
         graph = Graph(
             nodes=list(nodes.values()),
@@ -94,3 +131,17 @@ class MedicalGraphBuilder:
     @staticmethod
     def _make_id(label: str) -> str:
         return hashlib.sha256(label.lower().strip().encode()).hexdigest()[:16]
+
+    @staticmethod
+    def _slugify(text: str) -> str:
+        return re.sub(r"[^a-z0-9]+", "-", text.lower().strip()).strip("-")
+
+    @classmethod
+    def _build_report_path(
+        cls, patient_name: str, document_id: str, report_type: str, source_filename: str
+    ) -> str:
+        patient_slug = cls._slugify(patient_name)
+        report_name = document_id.rsplit(":", 1)[0] if ":" in document_id else source_filename.rsplit(".", 1)[0] if source_filename else document_id
+        report_slug = cls._slugify(report_name)
+        report_dir = _REPORT_TYPE_DIR.get(report_type.lower(), "Other")
+        return f"Patients/{patient_slug}/Reports/{report_dir}/{report_slug}.md"

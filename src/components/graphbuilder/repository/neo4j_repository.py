@@ -26,6 +26,7 @@ _NODE_LABEL_MAP: dict[str, str] = {
     "disease": "Disease",
     "medication": "Medication",
     "procedure": "Procedure",
+    "report": "Report",
 }
 
 _RELATION_MAP: dict[str, str] = {
@@ -35,6 +36,9 @@ _RELATION_MAP: dict[str, str] = {
     "treated_by": "TREATED_BY",
     "admitted_at": "ADMITTED_AT",
     "works_at": "WORKS_AT",
+    "has_report": "HAS_REPORT",
+    "generated_by": "GENERATED_BY",
+    "generated_at": "GENERATED_AT",
 }
 
 

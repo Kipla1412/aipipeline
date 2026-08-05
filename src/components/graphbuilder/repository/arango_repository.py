@@ -17,7 +17,7 @@ from .base import BaseGraphRepository
 
 logger = logging.getLogger(__name__)
 
-_COLLECTIONS = ["patients", "doctors", "hospitals", "diseases", "medications", "procedures"]
+_COLLECTIONS = ["patients", "doctors", "hospitals", "diseases", "medications", "procedures", "reports"]
 _EDGE_COLLECTION = "edges"
 
 _COLLECTION_MAP: dict[str, str] = {
@@ -27,6 +27,7 @@ _COLLECTION_MAP: dict[str, str] = {
     "disease": "diseases",
     "medication": "medications",
     "procedure": "procedures",
+    "report": "reports",
 }
 
 
