@@ -1,7 +1,8 @@
 from .json_transformer import UserRecord, OrderRecord, ProductRecord
 from .document import DocumentTransformerConfig, TransformerInputRecord, TransformerOutputChunk
 from .arxiv import *
-from .medical_schema import MedicalSchema, MedicalTransformerConfig, Vitals, Section, ImagingStudy
+from .medical_schema import MedicalSchema, MedicalTransformerConfig
+from ..models import Vitals, Section, ImagingStudy
 
 __all__ = [
     "UserRecord",

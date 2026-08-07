@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Shell(python3 -m pytest tests/test_custom/test_transformers/test_medical.py -v 2 >& 1)"
+    ],
+    "deny": [],
+    "defaultMode": "default"
+  }
+}

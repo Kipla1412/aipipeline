@@ -1,11 +1,22 @@
+"""Medical Transformer — converts extracted text into Clinical Domain Model.
+
+Composes builder, normalizer, and validator layers for clean SOLID architecture.
+Serializes back to backward-compatible flat dict for downstream consumers.
+"""
+
+from __future__ import annotations
+
 import json
 import logging
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any
 
 from .medical_base import BaseTransformer
 from .schemas.medical_schema import MedicalTransformerConfig, MedicalSchema
 from ..utils.llm import LLMClient
+from .builders.observation_builder import ObservationBuilder
+from .normalizers.observation_normalizer import ObservationNormalizer
+from .validators.observation_validator import ObservationValidator
 
 logger = logging.getLogger(__name__)
 
@@ -13,12 +24,21 @@ _PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
 
 
 class MedicalTransformer(BaseTransformer):
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         validated = MedicalTransformerConfig(**config)
-        self.llm = LLMClient(api_key=validated.api_key, model=validated.model_name, base_url=validated.base_url)
+        self.llm = LLMClient(
+            api_key=validated.api_key,
+            model=validated.model_name,
+            base_url=validated.base_url,
+        )
         self._system_prompt = (_PROMPTS_DIR / "clinical_extraction.md").read_text(encoding="utf-8")
+        self._obs_builder = ObservationBuilder()
+        self._obs_normalizer = ObservationNormalizer()
+        self._obs_validator = ObservationValidator()
 
-    async def transform(self, raw_text: str, dicom_metadata: Dict[str, Any] | None = None) -> Dict[str, Any]:
+    async def transform(
+        self, raw_text: str, dicom_metadata: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         response = await self.llm.generate(
             system_prompt=self._system_prompt,
             user_query=raw_text,
@@ -32,10 +52,44 @@ class MedicalTransformer(BaseTransformer):
             result.setdefault("source_type", "dicom")
             result["imaging"] = self._build_imaging_study(dicom_metadata)
 
+        # Build → Normalize → Validate observations
+        observations = self._obs_builder.build(result)
+        observations = self._obs_normalizer.normalize(observations)
+        observations = self._obs_validator.validate(observations)
+        result["observations"] = observations
+
+        result = self._serialize_to_dict(result)
         return result
 
     @staticmethod
-    def _build_imaging_study(metadata: Dict[str, Any]) -> Dict[str, Any]:
+    def _serialize_to_dict(data: dict) -> dict:
+        """Convert structured domain models back to flat dict for consumers."""
+        result = dict(data)
+
+        diagnoses = data.get("diagnoses", [])
+        if diagnoses and isinstance(diagnoses[0], dict):
+            result["diagnoses"] = [d.get("name", "") for d in diagnoses]
+
+        medications = data.get("medications", [])
+        if medications and isinstance(medications[0], dict):
+            flat_meds = []
+            for m in medications:
+                parts = [m.get("medication_name", "")]
+                if m.get("dosage"):
+                    parts.append(m["dosage"])
+                if m.get("frequency"):
+                    parts.append(m["frequency"])
+                flat_meds.append(" ".join(parts))
+            result["medications"] = flat_meds
+
+        procedures = data.get("procedures", [])
+        if procedures and isinstance(procedures[0], dict):
+            result["procedures"] = [p.get("procedure_name", "") for p in procedures]
+
+        return result
+
+    @staticmethod
+    def _build_imaging_study(metadata: dict[str, Any]) -> dict[str, Any]:
         def _float(v):
             if v is None:
                 return None

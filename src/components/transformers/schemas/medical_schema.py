@@ -1,58 +1,47 @@
+"""MedicalSchema — root aggregation of all clinical domain models.
+
+Uses structured Pydantic models (Diagnosis, Medication, Procedure, Observation)
+instead of flat List[str] fields. A serializer layer converts back to flat dict
+for backward compatibility with wiki, graph, and metadata consumers.
+"""
+
+from __future__ import annotations
+
 from pydantic import BaseModel, Field
-from typing import List, Optional
 
-
-class Vitals(BaseModel):
-    blood_pressure: Optional[str] = Field(None)
-    heart_rate: Optional[str] = Field(None)
-    temperature: Optional[str] = Field(None)
-    weight: Optional[str] = Field(None)
-    height: Optional[str] = Field(None)
-    bmi: Optional[str] = Field(None)
-
-
-class Section(BaseModel):
-    heading: str = Field(description="Section heading")
-    content: str = Field(description="Section body text")
-
-
-class ImagingStudy(BaseModel):
-    """DICOM imaging study metadata. Null for non-imaging documents."""
-    modality: Optional[str] = Field(None)
-    body_part: Optional[str] = Field(None)
-    study_uid: Optional[str] = Field(None)
-    series_uid: Optional[str] = Field(None)
-    sop_instance_uid: Optional[str] = Field(None)
-    series_description: Optional[str] = Field(None)
-    slice_thickness: Optional[float] = Field(None)
-    pixel_spacing: Optional[str] = Field(None, description="Pixel spacing as '[row, col]' string")
-    rows: Optional[int] = Field(None)
-    columns: Optional[int] = Field(None)
-    manufacturer: Optional[str] = Field(None)
-    model_name: Optional[str] = Field(None)
-    acquisition_date: Optional[str] = Field(None)
-    window_center: Optional[float] = Field(None)
-    window_width: Optional[float] = Field(None)
-    patient_position: Optional[str] = Field(None)
-    institution_name: Optional[str] = Field(None)
+from ..models.diagnosis import Diagnosis
+from ..models.medication import Medication
+from ..models.procedure import Procedure
+from ..models.observation import Observation
+from ..models.imaging import ImagingStudy
+from ..models.section import Section
+from ..models.vitals import Vitals
 
 
 class MedicalSchema(BaseModel):
-    document_id: Optional[str] = Field(None, description="Pipeline-assigned unique document ID")
-    report_type: Optional[str] = Field(None, description="Pipeline-assigned report classification")
+    document_id: str | None = Field(None, description="Pipeline-assigned unique document ID")
+    report_type: str | None = Field(None, description="Pipeline-assigned report classification")
     source_type: str = Field(default="pdf", description="Source format: pdf, dicom")
+
     patient_name: str = Field(description="Full patient name")
-    patient_id: Optional[str] = Field(None)
-    doctor_name: Optional[str] = Field(None)
-    diagnoses: List[str] = Field(default_factory=list)
-    medications: List[str] = Field(default_factory=list)
-    procedures: List[str] = Field(default_factory=list)
-    hospital: Optional[str] = Field(None)
-    report_date: Optional[str] = Field(None)
-    vitals: Optional[Vitals] = Field(None)
-    summary: str = Field(description="2-3 sentence clinical summary")
-    sections: Optional[List[Section]] = Field(None, description="Dynamic document sections")
-    imaging: Optional[ImagingStudy] = Field(None, description="Imaging study metadata (DICOM only)")
+    patient_id: str | None = Field(None, description="Patient ID, MRN, or hospital number")
+    doctor_name: str | None = Field(None, description="Treating physician or author")
+    hospital: str | None = Field(None, description="Hospital, clinic, or facility name")
+    report_date: str | None = Field(None, description="Report date in YYYY-MM-DD")
+
+    diagnoses: list[Diagnosis] = Field(default_factory=list, description="Structured diagnoses")
+    medications: list[Medication] = Field(default_factory=list, description="Structured medications")
+    procedures: list[Procedure] = Field(default_factory=list, description="Structured procedures")
+    observations: list[Observation] = Field(
+        default_factory=list,
+        description="All measurable clinical findings (vitals, labs, ECG, imaging metrics)",
+    )
+
+    vitals: Vitals | None = Field(None, description="Deprecated — use observations instead")
+    imaging: ImagingStudy | None = Field(None, description="DICOM imaging study metadata")
+
+    summary: str = Field(description="2-4 sentence clinical summary")
+    sections: list[Section] | None = Field(None, description="Document section layout")
 
 
 class MedicalTransformerConfig(BaseModel):
