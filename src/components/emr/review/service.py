@@ -77,6 +77,19 @@ class ReviewService:
         parts = field.split(".")
         cur = data
         for p in parts[:-1]:
-            if p not in cur: cur[p] = {}
-            cur = cur[p]
-        cur[parts[-1]] = value
+            if isinstance(cur, list):
+                try:
+                    cur = cur[int(p)]
+                except (ValueError, IndexError):
+                    return
+            else:
+                if p not in cur:
+                    cur[p] = {}
+                cur = cur[p]
+        if isinstance(cur, list):
+            try:
+                cur[int(parts[-1])] = value
+            except (ValueError, IndexError):
+                pass
+        else:
+            cur[parts[-1]] = value

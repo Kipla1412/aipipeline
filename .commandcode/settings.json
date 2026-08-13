@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Shell(python3 -m pytest tests/test_custom/test_transformers/test_medical.py -v 2 >& 1)"
+      "Shell(python3 -m pytest tests/test_custom/test_transformers/test_medical.py -v 2 >& 1)",
+      "Shell(python3 -m py_compile src/components/utils/config.py src/components/utils/llm.py src/components/connectors/arango.py src/components/connectors/neo4j.py src/components/graphbuilder/graphify_builder.py src/components/transformers/medical_transformer.py)",
+      "Shell(python3 -m py_compile test_emr_flow.py)",
+      "Shell(ls:*)"
     ],
     "deny": [],
     "defaultMode": "default"

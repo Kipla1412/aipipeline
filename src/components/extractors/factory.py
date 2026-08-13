@@ -20,6 +20,7 @@ class ExtractorFactory:
         "pdf": ("pymu_extractor", "PyMuPdfExtractor"),
         "dicom": ("dicom", "DicomExtractor"),
         "image": ("image_analyzer", "ImageAnalyzer"),
+        "filenest": ("filenest", "FileNestDownloader"),
     }
     _loaded: dict[str, type] = {}
 

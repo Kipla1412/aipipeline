@@ -23,6 +23,16 @@ _VALID_INTERPRETATIONS = {"low", "normal", "high", "abnormal", "critical", None}
 
 class ObservationValidator(IObservationValidator):
     def validate(self, observations: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """
+        Purpose:
+            Validates observation required fields, categories, and interpretations.
+
+        Args:
+            observations: List of observation dicts.
+
+        Returns:
+            list[dict]: Observations (warnings logged for invalid entries).
+        """
         result: list[dict[str, Any]] = []
 
         for i, obs in enumerate(observations):

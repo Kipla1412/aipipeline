@@ -1,3 +1,12 @@
+"""Graph builder factory — dispatches graph builder types by name.
+
+Usage:
+    builder = GraphBuilderFactory.get_builder("graphifyy", {"target_dir": "..."})
+    path = builder.build_from_documents(documents)
+
+Currently supports "graphifyy" (JSON + ArangoDB + Neo4j backends).
+"""
+
 import logging
 from typing import Any, Dict
 

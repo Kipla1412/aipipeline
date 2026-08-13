@@ -24,15 +24,36 @@ logger = logging.getLogger(__name__)
 
 class Neo4jConnector:
     def __init__(self, config: dict[str, Any]):
+        """
+        Purpose:
+            Initializes the Neo4jConnector with Pydantic-validated config.
+
+        Args:
+            config (dict): uri, username, password, database.
+        """
         self.config = Neo4jConfig(**config)
         self._driver: Driver | None = None
         logger.debug("Neo4jConnector initialized for uri: %s", self.config.uri)
 
     def __call__(self) -> Driver:
+        """
+        Purpose:
+            Connects to Neo4j and returns the Driver instance.
+
+        Returns:
+            Driver: Connected Neo4j driver.
+        """
         self.connect()
         return self._driver
 
     def connect(self) -> None:
+        """
+        Purpose:
+            Establishes Neo4j connection and verifies connectivity.
+
+        Raises:
+            ConnectionError: If Neo4j is unreachable or authentication fails.
+        """
         if self._driver is not None:
             return
 
@@ -57,6 +78,10 @@ class Neo4jConnector:
             raise ConnectionError(f"Neo4j connection failed: {exc}") from exc
 
     def close(self) -> None:
+        """
+        Purpose:
+            Closes the Neo4j Driver connection.
+        """
         if self._driver:
             self._driver.close()
             self._driver = None

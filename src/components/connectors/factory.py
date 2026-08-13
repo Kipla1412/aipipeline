@@ -1,3 +1,12 @@
+"""Connector factory — string-based dispatch to connector classes.
+
+Usage:
+    connector = ConnectorFactory.get_connector("rdbms", config)
+    client = connector()
+
+Connectors are lazily loaded to avoid importing unused dependencies.
+"""
+
 import logging
 from typing import Any
 
@@ -6,8 +15,6 @@ from .base import BaseConnector
 logger = logging.getLogger(__name__)
 
 """
-connector_factory.py
-====================================
 Purpose:
     Implementation of the Factory pattern to route requests to specific 
     connector classes based on a string identifier.
@@ -25,6 +32,7 @@ class ConnectorFactory:
         "nas": "NASConnector",
         "arango": "ArangoDBConnector",
         "neo4j": "Neo4jConnector",
+        "filenest": "FileNestConnector",
     }
     _loaded: dict[str, type] = {}
 

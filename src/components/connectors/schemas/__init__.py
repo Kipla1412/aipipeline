@@ -1,3 +1,11 @@
+"""Pydantic configuration models for all connectors.
+
+Each connector type has its own config model.
+Import directly:
+
+    from src.components.connectors.schemas import ArangoDBConfig, Neo4jConfig
+"""
+
 from .elasticsearch import ElasticsearchConfig
 from .opensearch import OpensearchConfig
 from .rdbms import RDBMSConfig

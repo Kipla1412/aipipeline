@@ -29,6 +29,17 @@ class MedicalGraphBuilder:
     """Builds a Graph from MedicalDocument dicts. Pure construction, no I/O."""
 
     def build(self, documents: list[dict[str, Any]], source_filename: str = "") -> Graph:
+        """
+        Purpose:
+            Builds an in-memory Graph from MedicalDocument dicts. No persistence.
+
+        Args:
+            documents: List of MedicalDocument dicts.
+            source_filename: Original source file reference.
+
+        Returns:
+            Graph: In-memory Graph model with nodes and edges.
+        """
         nodes: dict[str, GraphNode] = {}
         edges: list[GraphEdge] = []
 
@@ -106,6 +117,13 @@ class MedicalGraphBuilder:
     def _ensure_node(
         self, nodes: dict[str, GraphNode], label: str, file_type: str, source_file: str | None
     ) -> str:
+        """
+        Purpose:
+            Returns existing node ID or creates a new node for a label.
+
+        Returns:
+            str: Node ID (SHA-256 hash).
+        """
         nid = self._make_id(label)
         if nid not in nodes:
             nodes[nid] = GraphNode(
@@ -121,6 +139,13 @@ class MedicalGraphBuilder:
     def _link(
         self, source_id: str, target_id: str, relation: str, source_filename: str
     ) -> GraphEdge:
+        """
+        Purpose:
+            Creates a GraphEdge connecting two node IDs.
+
+        Returns:
+            GraphEdge: Edge with relation type and source reference.
+        """
         return GraphEdge(
             source=source_id,
             target=target_id,
@@ -130,16 +155,19 @@ class MedicalGraphBuilder:
 
     @staticmethod
     def _make_id(label: str) -> str:
+        """Generate a 16-char hex node ID from label via SHA-256."""
         return hashlib.sha256(label.lower().strip().encode()).hexdigest()[:16]
 
     @staticmethod
     def _slugify(text: str) -> str:
+        """Convert text to lowercase kebab-case slug."""
         return re.sub(r"[^a-z0-9]+", "-", text.lower().strip()).strip("-")
 
     @classmethod
     def _build_report_path(
         cls, patient_name: str, document_id: str, report_type: str, source_filename: str
     ) -> str:
+        """Build the wiki-style report page path from document metadata."""
         patient_slug = cls._slugify(patient_name)
         report_name = document_id.rsplit(":", 1)[0] if ":" in document_id else source_filename.rsplit(".", 1)[0] if source_filename else document_id
         report_slug = cls._slugify(report_name)

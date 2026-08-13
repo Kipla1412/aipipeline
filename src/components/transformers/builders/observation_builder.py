@@ -26,6 +26,16 @@ _VITAL_MAP: list[tuple[str, str, str]] = [
 
 class ObservationBuilder(IObservationBuilder):
     def build(self, raw_data: dict[str, Any]) -> list[dict[str, Any]]:
+        """
+        Purpose:
+            Builds a unified observation list from LLM output and vitals dict.
+
+        Args:
+            raw_data (dict): Contains 'observations' (list) and 'vitals' (dict).
+
+        Returns:
+            list[dict]: Normalized observation dicts with numeric values and BP decomposition.
+        """
         observations: list[dict[str, Any]] = []
         seen: set[str] = set()
 
@@ -51,6 +61,13 @@ class ObservationBuilder(IObservationBuilder):
         return observations
 
     def _build_one(self, raw: dict[str, Any]) -> dict[str, Any]:
+        """
+        Purpose:
+            Builds a single observation dict from raw LLM output.
+
+        Returns:
+            dict: Observation with id, category, display_name, numeric value, unit, BP.
+        """
         name = raw.get("name") or raw.get("display_name") or ""
         value = raw.get("value")
         numeric_value = self._parse_numeric(value)
@@ -80,6 +97,13 @@ class ObservationBuilder(IObservationBuilder):
         return obs
 
     def _from_vital(self, display_name: str, value: str, unit: str) -> dict[str, Any]:
+        """
+        Purpose:
+            Builds an observation dict from a vitals entry.
+
+        Returns:
+            dict: Observation with vital_signs category and parsed numeric value.
+        """
         clean_value = value.replace(unit, "").strip() if unit else value
         return {
             "observation_id": hashlib.sha256(f"vital:{display_name}:{value}".encode()).hexdigest()[:16],
@@ -100,6 +124,13 @@ class ObservationBuilder(IObservationBuilder):
 
     @staticmethod
     def _parse_numeric(value: Any) -> int | float | str | None:
+        """
+        Purpose:
+            Parses a value into int, float, or keeps string.
+
+        Returns:
+            int | float | str | None: Best-effort numeric parse.
+        """
         if value is None:
             return None
         if isinstance(value, (int, float)):
@@ -117,6 +148,13 @@ class ObservationBuilder(IObservationBuilder):
 
     @staticmethod
     def _parse_blood_pressure(value: Any) -> dict[str, Any] | None:
+        """
+        Purpose:
+            Decomposes '138/84' into systolic/diastolic dict.
+
+        Returns:
+            dict | None: {'systolic': float, 'diastolic': float} or None if unparsable.
+        """
         if value is None:
             return None
         s = str(value).strip()

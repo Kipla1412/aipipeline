@@ -12,6 +12,16 @@ class LLMClient:
     """Reusable async LLM client. Supports text generation + vision."""
 
     def __init__(self, api_key: str, model: str, base_url: str | None = None, timeout: float = 300):
+        """
+        Purpose:
+            Initializes the LLMClient with API key, model, and optional base URL.
+
+        Args:
+            api_key: OpenAI API key.
+            model: Model name, e.g. 'gpt-4o-mini'.
+            base_url: Optional custom OpenAI-compatible base URL.
+            timeout: Request timeout in seconds.
+        """
         self._client: AsyncOpenAI | None = None
         self.api_key = api_key
         self.model = model
@@ -19,6 +29,13 @@ class LLMClient:
         self.timeout = timeout
 
     def _get_client(self) -> AsyncOpenAI:
+        """
+        Purpose:
+            Lazily creates and returns the async OpenAI client.
+
+        Returns:
+            AsyncOpenAI: Initialized client instance.
+        """
         if self._client is None:
             self._client = AsyncOpenAI(
                 api_key=self.api_key,
@@ -28,6 +45,10 @@ class LLMClient:
         return self._client
 
     async def close(self) -> None:
+        """
+        Purpose:
+            Closes the async OpenAI client connection.
+        """
         if self._client:
             await self._client.close()
             self._client = None
@@ -36,6 +57,19 @@ class LLMClient:
         self, system_prompt: str, user_query: str,
         response_format: type | None = None, json_mode: bool = False,
     ) -> str:
+        """
+        Purpose:
+            Generates a chat completion from the LLM.
+
+        Args:
+            system_prompt: System prompt instructing the model.
+            user_query: User content to process.
+            response_format: Optional Pydantic model for structured output.
+            json_mode: Whether to request JSON object response.
+
+        Returns:
+            str: Model response. JSON string if response_format provided, else text.
+        """
         client = self._get_client()
         kwargs: dict = {
             "model": self.model, "temperature": 0.1,
@@ -55,6 +89,17 @@ class LLMClient:
             return response.choices[0].message.content or ""
 
     async def describe_image(self, system_prompt: str, image_path: str) -> str:
+        """
+        Purpose:
+            Analyzes a medical image using LLM vision and returns a text description.
+
+        Args:
+            system_prompt: Instruction prompt for image analysis.
+            image_path: Path to the image file.
+
+        Returns:
+            str: Textual description of the image.
+        """
         from pathlib import Path
         path = Path(image_path)
         ext = path.suffix.lower().lstrip(".")

@@ -25,6 +25,14 @@ _PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
 
 class MedicalTransformer(BaseTransformer):
     def __init__(self, config: dict[str, Any]):
+        """
+        Purpose:
+            Initializes the MedicalTransformer with LLM client, extraction prompt,
+            and the builder/normalizer/validator observation pipeline.
+
+        Args:
+            config (dict): Model name, API key, and optional base URL.
+        """
         validated = MedicalTransformerConfig(**config)
         self.llm = LLMClient(
             api_key=validated.api_key,
@@ -39,6 +47,19 @@ class MedicalTransformer(BaseTransformer):
     async def transform(
         self, raw_text: str, dicom_metadata: dict[str, Any] | None = None
     ) -> dict[str, Any]:
+        """
+        Purpose:
+            Converts extracted text into a structured Clinical Domain Model
+            (flat dict format for wiki, graph, and metadata consumers).
+
+        Args:
+            raw_text: Extracted document text.
+            dicom_metadata: Optional DICOM metadata for imaging documents.
+
+        Returns:
+            dict: Flattened clinical record with diagnoses, medications,
+                  procedures, observations, vitals, and sections.
+        """
         response = await self.llm.generate(
             system_prompt=self._system_prompt,
             user_query=raw_text,
@@ -90,6 +111,7 @@ class MedicalTransformer(BaseTransformer):
 
     @staticmethod
     def _build_imaging_study(metadata: dict[str, Any]) -> dict[str, Any]:
+        """Build imaging study dict from DICOM metadata."""
         def _float(v):
             if v is None:
                 return None
@@ -134,6 +156,7 @@ class MedicalTransformer(BaseTransformer):
 
     @staticmethod
     def _normalize_sections(data: dict) -> None:
+        """Convert list-of-sections to heading→content dict."""
         raw = data.get("sections")
         if not raw or not isinstance(raw, list):
             return

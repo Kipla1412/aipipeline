@@ -25,16 +25,37 @@ logger = logging.getLogger(__name__)
 
 class ArangoDBConnector:
     def __init__(self, config: dict[str, Any]):
+        """
+        Purpose:
+            Initializes the ArangoDBConnector with Pydantic-validated config.
+
+        Args:
+            config (dict): host, port, username, password, database, verify_certs.
+        """
         self.config = ArangoDBConfig(**config)
         self._client: ArangoClient | None = None
         self._db: StandardDatabase | None = None
         logger.debug("ArangoDBConnector initialized for host: %s", self.config.host)
 
     def __call__(self) -> StandardDatabase:
+        """
+        Purpose:
+            Connects to ArangoDB and returns the database handle.
+
+        Returns:
+            StandardDatabase: Connected ArangoDB database.
+        """
         self.connect()
         return self._db
 
     def connect(self) -> None:
+        """
+        Purpose:
+            Establishes ArangoDB connection with TLS, auth, and health check.
+
+        Raises:
+            ConnectionError: If ArangoDB is unreachable or authentication fails.
+        """
         host = self.config.host
         host = host.replace("https://", "").replace("http://", "").split("/")[0].split(":")[0]
         protocol = "https" if self.config.verify_certs else "http"
@@ -60,6 +81,10 @@ class ArangoDBConnector:
             raise ConnectionError(f"ArangoDB connection failed: {exc}") from exc
 
     def close(self) -> None:
+        """
+        Purpose:
+            Closes the ArangoDB connection and releases resources.
+        """
         if self._client:
             self._client.close()
             self._client = None

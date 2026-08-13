@@ -1,3 +1,11 @@
+"""Clinical domain models — strongly-typed Pydantic schemas.
+
+Every clinical concept has its own model.
+Import directly:
+
+    from src.components.transformers.models import Diagnosis, Observation, Medication, ...
+"""
+
 from .patient import Patient
 from .diagnosis import Diagnosis
 from .medication import Medication

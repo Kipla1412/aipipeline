@@ -67,6 +67,13 @@ class MedicalClassifier:
     """Uses LLMClient to classify medical document type from document text."""
 
     def __init__(self, config: dict):
+        """
+        Purpose:
+            Initializes the MedicalClassifier with LLM config.
+
+        Args:
+            config (dict): api_key, model, optional base_url.
+        """
         self.config = config
         api_key = config.get("api_key", "")
         model = config.get("model", "gpt-4o-mini")
@@ -75,7 +82,16 @@ class MedicalClassifier:
         logger.info(f"MedicalClassifier initialized — model={model}")
 
     async def classify(self, text: str) -> str:
-        """Classify a document's report_type from its text content."""
+        """
+        Purpose:
+            Classifies a medical document's report type from text.
+
+        Args:
+            text: Extracted document text.
+
+        Returns:
+            str: Report type (mri, ct, xray, blood_report, other, etc.).
+        """
         if not text.strip():
             return "other"
         sample = text[:800]

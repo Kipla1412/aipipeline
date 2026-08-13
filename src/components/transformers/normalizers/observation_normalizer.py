@@ -25,6 +25,7 @@ _NAME_NORMALIZATION: dict[str, str] = {
 
 class ObservationNormalizer(IObservationNormalizer):
     def normalize(self, observations: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Normalize and deduplicate observations: fix names, units, values, and interpretations."""
         seen: dict[str, int] = {}
         result: list[dict[str, Any]] = []
 
@@ -45,6 +46,13 @@ class ObservationNormalizer(IObservationNormalizer):
 
     @staticmethod
     def _normalize_name(obs: dict[str, Any]) -> dict[str, Any]:
+        """
+        Purpose:
+            Normalizes observation display names (e.g., 'Body Temperature' → 'Temperature').
+
+        Returns:
+            dict: Observation with cleaned display_name.
+        """
         name = obs.get("display_name", "").strip()
         lower = name.lower()
         if lower in _NAME_NORMALIZATION:
@@ -55,6 +63,13 @@ class ObservationNormalizer(IObservationNormalizer):
 
     @staticmethod
     def _normalize_unit(obs: dict[str, Any]) -> dict[str, Any]:
+        """
+        Purpose:
+            Fixes duplicated units (e.g., 'kg kg' → 'kg') and None-string units.
+
+        Returns:
+            dict: Observation with cleaned unit.
+        """
         unit = obs.get("unit")
         if unit is None or unit == "None" or unit == "":
             obs["unit"] = None
@@ -69,7 +84,13 @@ class ObservationNormalizer(IObservationNormalizer):
 
     @staticmethod
     def _normalize_value_suffix(obs: dict[str, Any]) -> dict[str, Any]:
-        """Strip unit suffix from value string if it's already in the unit field."""
+        """
+        Purpose:
+            Strips unit suffix from value if already present (e.g., '88 kg' → '88').
+
+        Returns:
+            dict: Observation with clean value.
+        """
         unit = obs.get("unit")
         value = obs.get("value")
         if not unit or not isinstance(value, str):
@@ -85,6 +106,13 @@ class ObservationNormalizer(IObservationNormalizer):
 
     @staticmethod
     def _normalize_interpretation(obs: dict[str, Any]) -> dict[str, Any]:
+        """
+        Purpose:
+            Standardizes interpretation values to low/normal/high/abnormal/critical.
+
+        Returns:
+            dict: Observation with normalized interpretation.
+        """
         interp = obs.get("interpretation")
         if interp is None:
             return obs
@@ -98,6 +126,13 @@ class ObservationNormalizer(IObservationNormalizer):
 
     @staticmethod
     def _fix_bmi_unit(obs: dict[str, Any]) -> dict[str, Any]:
+        """
+        Purpose:
+            Ensures BMI observations use 'kg/m²' unit.
+
+        Returns:
+            dict: Observation with corrected BMI unit.
+        """
         name = obs.get("display_name", "").strip().lower()
         if name == "bmi":
             unit = obs.get("unit")
