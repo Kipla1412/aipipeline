@@ -117,6 +117,13 @@ WHERE download_status = 'pending'
 ORDER BY id
 """
 
+_ALL_SQL = """
+SELECT id, filenest_file_id, filename, filepath, content_type, size_bytes,
+       filenest_status, metadata, download_status, downloaded_at, created_at, updated_at
+FROM filenest_files
+ORDER BY id
+"""
+
 
 class FileNestRepository:
     """
@@ -150,7 +157,7 @@ class FileNestRepository:
                 text(_INSERT_SQL),
                 self._params(record),
             ).mappings().one_or_none()
-            conn.commit()
+            self._commit(conn)
         logger.info("Saved FileNest record: %s", record.filenest_file_id)
         return self._row_to_record(row)
 
@@ -217,7 +224,7 @@ class FileNestRepository:
             )
             if result.rowcount == 0:
                 raise ValueError(f"No FileNest record found for file_id: {file_id}")
-            conn.commit()
+            self._commit(conn)
         logger.info("Updated download_status=%s for %s", status.value, file_id)
 
     def get_pending_files(self) -> list[FileNestFileRecord]:
@@ -231,6 +238,19 @@ class FileNestRepository:
         with self._connection() as conn:
             self._ensure_tables(conn)
             rows = conn.execute(text(_PENDING_SQL)).mappings().all()
+        return [self._row_to_record(r) for r in rows]
+
+    def list_all(self) -> list[FileNestFileRecord]:
+        """
+        Purpose:
+            Returns all stored FileNest file records regardless of status.
+
+        Returns:
+            list[FileNestFileRecord]: All records ordered by id.
+        """
+        with self._connection() as conn:
+            self._ensure_tables(conn)
+            rows = conn.execute(text(_ALL_SQL)).mappings().all()
         return [self._row_to_record(r) for r in rows]
 
     def close(self) -> None:
@@ -264,8 +284,16 @@ class FileNestRepository:
         else:
             conn.execute(text(_CREATE_TABLE_SQLITE))
             conn.execute(text(_CREATE_INDEX_SQLITE))
-        conn.commit()
+        self._commit(conn)
         self._tables_ready = True
+
+    @staticmethod
+    def _commit(conn) -> None:
+        """Commit — compatible with SQLAlchemy 1.4 (no Connection.commit) and 2.0."""
+        if hasattr(conn, "commit"):
+            conn.commit()
+        else:
+            conn.execute(text("COMMIT"))
 
     @staticmethod
     def _params(record: FileNestFileRecord) -> dict[str, Any]:

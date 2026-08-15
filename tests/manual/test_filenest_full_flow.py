@@ -1,22 +1,18 @@
 """Full FileNest end-to-end integration test — connector → list → URL → download → Postgres.
 
-Tests the complete flow:
-  1. FileNestConnector — connect to FileNest cloud
-  2. FileNestDownloader.list_files() — list real files
-  3. FileNestDownloader.get_file() — get metadata for one file
-  4. FileNestDownloader.get_download_url() — generate signed URL
-  5. FileNestDownloader.download_to_temp() — download to storage/temp/
-  6. FileNestRepository.save() — persist metadata to PostgreSQL
-  7. FileNestRepository.update_download_status() — mark as downloaded
-  8. Verify — read back from PostgreSQL + check file exists on disk
+Processes files one by one:
+  --all                : loop over ALL files (download → save → mark downloaded → next)
+  <file_id>            : single specific file
+  (no arg)             : first file in the list
 
 Real credentials required (from .env):
   FILENEST_API_KEY, FILENEST_PROJECT_ID, FILENEST_API_URL
   POSTGRES_HOST, POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB
 
 Usage:
+  python3 tests/manual/test_filenest_full_flow.py --all
+  python3 tests/manual/test_filenest_full_flow.py <file_id>
   python3 tests/manual/test_filenest_full_flow.py
-  python3 tests/manual/test_filenest_full_flow.py <file_id>   # specific file
 """
 
 import json
@@ -45,6 +41,33 @@ def separator(title: str) -> None:
     print(f"{'=' * 60}")
 
 
+def process_one(downloader, repo, file_meta) -> None:
+    """Download one file, save metadata to Postgres, mark downloaded."""
+    print(f"\n  ▶ Processing: {file_meta.filename} ({file_meta.id[:8]}...)")
+
+    url = downloader.get_download_url(file_meta.id, ttl=3600)
+    print(f"    URL: {url[:80]}...")
+
+    local_path = downloader.download_to_temp(file_meta.id)
+    print(f"    Downloaded → {local_path} ({local_path.stat().st_size} bytes)")
+
+    record = FileNestFileRecord(
+        filenest_file_id=file_meta.id,
+        filename=file_meta.filename,
+        filepath=str(local_path),
+        content_type=getattr(file_meta, "content_type", None),
+        size_bytes=getattr(file_meta, "size_bytes", None),
+        filenest_status=getattr(file_meta, "status", None),
+        metadata=getattr(file_meta, "metadata", None) or {},
+        download_status=DownloadStatus.DOWNLOADING,
+    )
+    saved = repo.save(record)
+    print(f"    Saved to Postgres: id={saved.id}")
+
+    repo.update_download_status(file_meta.id, DownloadStatus.DOWNLOADED)
+    print(f"    Status: downloaded ✓")
+
+
 def main() -> None:
     api_key = os.environ.get("FILENEST_API_KEY")
     project_id = os.environ.get("FILENEST_PROJECT_ID")
@@ -63,77 +86,50 @@ def main() -> None:
     })
     client = filenest()
     print(f"  Connected: project={project_id}")
-    print(f"  Client type: {type(client).__name__}")
 
-    # 2. Downloader + list files
+    # 2. List files
     separator("STEP 2 — list_files()")
     downloader = FileNestDownloader(filenest, {"download_dir": "storage/temp"})
     files = downloader.list_files()
     print(f"  Total files: {len(files)}")
-    for f in files[:5]:
+    for f in files:
         print(f"    {f.id}  {f.filename}  ({f.status})")
     if not files:
         print("  No files found — nothing to test.")
         return
 
-    args = [a for a in sys.argv[1:] if not a.startswith("--")]
-    file_id = args[0] if args else files[0].id
-    target = next((f for f in files if f.id == file_id), files[0])
-
-    # 3. Get file metadata
-    separator("STEP 3 — get_file()")
-    file_meta = downloader.get_file(target.id)
-    print(f"  id:         {file_meta.id}")
-    print(f"  filename:   {file_meta.filename}")
-    print(f"  content:    {getattr(file_meta, 'content_type', '?')}")
-    print(f"  size:       {getattr(file_meta, 'size_bytes', '?')} bytes")
-    print(f"  metadata:   {getattr(file_meta, 'metadata', {})}")
-
-    # 4. Get download URL
-    separator("STEP 4 — get_download_url()")
-    url = downloader.get_download_url(file_meta.id, ttl=3600)
-    print(f"  Signed URL (ttl=3600s):")
-    print(f"    {url[:100]}...")
-
-    # 5. Download to temp
-    separator("STEP 5 — download_to_temp()")
-    local_path = downloader.download_to_temp(file_meta.id)
-    print(f"  Downloaded → {local_path}")
-    print(f"  File exists: {local_path.exists()}")
-    print(f"  Size on disk: {local_path.stat().st_size} bytes")
-
-    # 6. Persist metadata to PostgreSQL
-    separator("STEP 6 — FileNestRepository.save()")
+    # 3. Postgres repo (single connection reused for all files)
+    separator("SETUP — PostgreSQL repository")
     rdbms_config = PipelineConfig().get_postgres_config()
     connector = RDBMSConnector(rdbms_config)
     repo = FileNestRepository(connector)
+    print("  Connected to PostgreSQL")
 
-    record = FileNestFileRecord(
-        filenest_file_id=file_meta.id,
-        filename=file_meta.filename,
-        filepath=str(local_path),
-        content_type=getattr(file_meta, "content_type", None),
-        size_bytes=getattr(file_meta, "size_bytes", None),
-        filenest_status=getattr(file_meta, "status", None),
-        metadata=getattr(file_meta, "metadata", None) or {},
-        download_status=DownloadStatus.DOWNLOADING,
-    )
-    saved = repo.save(record)
-    print(f"  Saved id={saved.id} filenest_file_id={saved.filenest_file_id}")
-    print(f"  download_status={saved.download_status}")
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    process_all = "--all" in sys.argv
 
-    # 7. Mark as downloaded
-    separator("STEP 7 — update_download_status(downloaded)")
-    repo.update_download_status(file_meta.id, DownloadStatus.DOWNLOADED)
-    updated = repo.get_by_file_id(file_meta.id)
-    print(f"  download_status: {updated.download_status}")
-    print(f"  downloaded_at:   {updated.downloaded_at}")
+    if process_all:
+        separator(f"PROCESSING ALL {len(files)} FILES (one by one)")
+        for f in files:
+            file_meta = downloader.get_file(f.id)
+            process_one(downloader, repo, file_meta)
+    elif args:
+        file_meta = downloader.get_file(args[0])
+        separator(f"PROCESSING SINGLE FILE — {file_meta.filename}")
+        process_one(downloader, repo, file_meta)
+    else:
+        file_meta = downloader.get_file(files[0].id)
+        separator(f"PROCESSING FIRST FILE — {file_meta.filename}")
+        process_one(downloader, repo, file_meta)
 
-    # 8. Verify read-back
-    separator("STEP 8 — Verify read-back")
-    print(json.dumps(updated.model_dump(), indent=2, default=str))
-    print(f"\n  exists(): {repo.exists(file_meta.id)}")
-    print(f"  File on disk: {local_path.exists()}")
+    # 4. Verify
+    separator("VERIFY — Postgres read-back")
+    all_records = repo.list_all()
+    downloaded = [r for r in all_records if r.download_status == "downloaded"]
+    print(f"  Records in Postgres: {len(all_records)}")
+    print(f"  Downloaded: {len(downloaded)}")
+    for r in downloaded[-5:]:
+        print(f"    {r.filenest_file_id[:8]}... {r.filename} [{r.download_status}]")
 
     repo.close()
     downloader.close()
