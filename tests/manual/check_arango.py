@@ -15,7 +15,7 @@ print(f"Database: {settings.ARANGO_DATABASE}")
 print()
 
 if not settings.arango_enabled:
-    print("NOT CONFIGURED — set MED_WIKI_ARANGO_HOST/USERNAME/PASSWORD in .env")
+    print("NOT CONFIGURED — set ARANGO_HOST/USERNAME/PASSWORD in .env")
     sys.exit(1)
 
 try:
@@ -62,6 +62,6 @@ except Exception as e:
     print(f"Connection failed: {e}")
     print()
     if "401" in str(e):
-        print("Check MED_WIKI_ARANGO_USERNAME and MED_WIKI_ARANGO_PASSWORD in .env")
+        print("Check ARANGO_USERNAME and ARANGO_PASSWORD in .env")
     elif "resolve" in str(e).lower():
-        print("Check MED_WIKI_ARANGO_HOST in .env")
+        print("Check ARANGO_HOST in .env")

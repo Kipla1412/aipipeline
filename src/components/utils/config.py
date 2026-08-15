@@ -1,12 +1,22 @@
 import os
+import logging
 from pathlib import Path
 from typing import List
+from dotenv import load_dotenv
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+logger = logging.getLogger(__name__)
+
+# Load bare (non-prefixed) env vars (e.g. POSTGRES_HOST) into os.environ.
+_PROJECT_ROOT = Path(__file__).resolve()
+for _ in range(4):
+    _PROJECT_ROOT = _PROJECT_ROOT.parent
+load_dotenv(_PROJECT_ROOT / ".env")
+
 
 class PipelineConfig(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="MED_WIKI_", env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     ENV: str = Field("development")
     LOG_LEVEL: str = Field("INFO")
@@ -32,6 +42,11 @@ class PipelineConfig(BaseSettings):
     NEO4J_USERNAME: str = Field("")
     NEO4J_PASSWORD: str = Field("")
     NEO4J_DATABASE: str = Field("neo4j")
+    POSTGRES_HOST: str = Field("")
+    POSTGRES_PORT: int = Field(5432)
+    POSTGRES_USER: str = Field("")
+    POSTGRES_PASSWORD: str = Field("")
+    POSTGRES_DB: str = Field("structured_data_pipeline")
 
     @model_validator(mode="after")
     def _fallback_api_key(self):
@@ -159,3 +174,42 @@ class PipelineConfig(BaseSettings):
             bool: True when uri, username, and password are set.
         """
         return bool(self.NEO4J_URI and self.NEO4J_USERNAME and self.NEO4J_PASSWORD)
+
+    def get_postgres_config(self) -> dict:
+        """
+        Purpose:
+            Packages PostgreSQL connection settings into a config dict.
+
+        Returns:
+            dict: type, host, port, database, login, password — ready for
+                  RDBMSConnector / sqlalchemy URL generation.
+
+        Raises:
+            ValueError: If host, user, or password is not configured.
+        """
+        if not self.postgres_enabled:
+            raise ValueError(
+                "PostgreSQL not configured — set POSTGRES_HOST, "
+                "POSTGRES_USER, POSTGRES_PASSWORD in .env"
+            )
+        host = self.POSTGRES_HOST.replace("https://", "").replace("http://", "").split("/")[0].split(":")[0]
+        return {
+            "type": "postgresql",
+            "host": host,
+            "port": self.POSTGRES_PORT,
+            "database": self.POSTGRES_DB,
+            "login": self.POSTGRES_USER,
+            "password": self.POSTGRES_PASSWORD,
+        }
+
+    @property
+    def postgres_enabled(self) -> bool:
+        """
+        Purpose:
+            Determines whether PostgreSQL is fully configured.
+
+        Returns:
+            bool: True when host, user, and password are set.
+        """
+        return bool(self.POSTGRES_HOST and self.POSTGRES_USER and self.POSTGRES_PASSWORD)
+

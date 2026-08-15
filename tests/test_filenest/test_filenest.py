@@ -64,17 +64,18 @@ class TestFileNestConnector:
 class TestListFiles:
     def test_list_files_calls_sdk(self):
         connector = MagicMock()
-        mock_files = [
-            MagicMock(
-                id="76775c3b-cd05-4f21-a56c-5b16a9054e3f",
-                filename="Sample_CBC_Report.pdf",
-                content_type="application/pdf",
-                size_bytes=15571,
-                status="ready",
-                metadata={"serviceRequestId": 80002},
-            )
-        ]
-        connector().files.list.return_value = mock_files
+        mock_file = MagicMock(
+            id="76775c3b-cd05-4f21-a56c-5b16a9054e3f",
+            filename="Sample_CBC_Report.pdf",
+            content_type="application/pdf",
+            size_bytes=15571,
+            status="ready",
+            metadata={"serviceRequestId": 80002},
+        )
+        # SDK returns FileListResponse with .items
+        connector().files.list.return_value = MagicMock(
+            items=[mock_file], total=1, limit=20, offset=0, has_more=False
+        )
 
         downloader = FileNestDownloader(connector, {"download_dir": "storage/temp"})
         files = downloader.list_files()

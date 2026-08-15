@@ -24,6 +24,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
+# Load .env from the repo root (aiplatform/.env) or one level up (aipipeline/.env)
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env")
+load_dotenv(Path(__file__).resolve().parent.parent.parent.parent / ".env")
+
 from src.components.connectors.filenest import FileNestConnector
 from src.components.extractors.filenest import FileNestDownloader
 

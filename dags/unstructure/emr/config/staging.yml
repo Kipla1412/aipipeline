@@ -1,0 +1,36 @@
+# EMR Staging Pipeline Configuration
+# DAG: dags/unstructure/emr/staging.py
+# Approach: transformer output → staging → submit for human review
+
+pipeline:
+  description: "NAS → Extract → LLM Classify → LLM Transform → Staging (submit for review)"
+  schedule: "@daily"
+  retries: 1
+  retry_delay_minutes: 5
+
+nas:
+  directory: "/home/kipla/aipipeline/aiplatform/storage/raw"
+  allowed_extensions: [".pdf", ".dcm"]
+  stability_delay_seconds: 1.0
+  stability_retries: 5
+
+extraction:
+  extract_images: true
+  image_output_dir: "/home/kipla/aipipeline/aiplatform/storage/images"
+
+classification:
+  model: "gpt-4o-mini"
+  prompt_file: "prompts/report_classification.md"
+
+transformation:
+  model: "gpt-4o-mini"
+  prompt_file: "prompts/clinical_extraction.md"
+  output_dir: "/home/kipla/aipipeline/aiplatform/storage/emr/transformed"
+
+staging:
+  staging_dir: "/home/kipla/aipipeline/aiplatform/storage/emr/staging"
+
+openai:
+  connection_id: "openai"
+  timeout: 120
+  max_retries: 3

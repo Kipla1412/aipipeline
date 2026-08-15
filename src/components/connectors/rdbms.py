@@ -69,9 +69,14 @@ class RDBMSConnector:
             "database": self.config.database,
         }
 
+        # SQLite URLs must not include host/port (e.g. sqlite:///:memory:)
+        if self.config.type == "sqlite":
+            url_params.pop("host", None)
+            url_params.pop("port", None)
+
         connection_url = URL.create(**{k: v for k, v in url_params.items() if v is not None})
         
-        logger.info(f"Connecting to database: {url_params['database']} at {url_params['host']}")
+        logger.info(f"Connecting to database: {url_params.get('database')} at {url_params.get('host', 'local')}")
         
         try:
             self._engine = create_engine(connection_url)

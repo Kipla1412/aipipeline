@@ -59,8 +59,9 @@ class FileNestDownloader:
             Exception: If the FileNest list API call fails.
         """
         try:
-            files = self.client.files.list()
-            logger.info(f"FileNest list returned {len(files)} file(s)")
+            response = self.client.files.list()
+            files = list(response.items)
+            logger.info(f"FileNest list returned {len(files)} file(s) (total={response.total})")
             return files
         except Exception as exc:
             logger.exception("FileNest list failed")

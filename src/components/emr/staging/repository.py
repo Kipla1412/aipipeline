@@ -18,12 +18,23 @@ logger = logging.getLogger(__name__)
 
 class JsonStagingRepository:
     def __init__(self, staging_dir: Path):
+        """
+        Purpose:
+            Initializes repository with an in-memory index of staged records.
+
+        Args:
+            staging_dir: Directory path for JSON record files.
+        """
         self._dir = Path(staging_dir)
         self._dir.mkdir(parents=True, exist_ok=True)
         self._index: dict[str, DraftClinicalRecord] = {}
         self._read_all()
 
     def _read_all(self) -> None:
+        """
+        Purpose:
+            Loads all existing draft JSON files into the in-memory index.
+        """
         for f in sorted(self._dir.glob("*.json")):
             try:
                 data = json.loads(f.read_text(encoding="utf-8"))
@@ -32,6 +43,16 @@ class JsonStagingRepository:
                 logger.warning("Skipping corrupt %s: %s", f.name, exc)
 
     def save(self, record: DraftClinicalRecord) -> DraftClinicalRecord:
+        """
+        Purpose:
+            Atomically persists a draft record to a JSON file.
+
+        Args:
+            record: The DraftClinicalRecord to save.
+
+        Returns:
+            DraftClinicalRecord: The saved record (with updated_at set).
+        """
         record.updated_at = datetime.now(timezone.utc).isoformat()
         self._index[record.record_id] = record
         path = self._dir / f"{record.record_id}.json"
@@ -44,10 +65,37 @@ class JsonStagingRepository:
         return record
 
     def get(self, record_id: str) -> DraftClinicalRecord | None:
+        """
+        Purpose:
+            Retrieves a record by ID from the in-memory index.
+
+        Args:
+            record_id: The record UUID.
+
+        Returns:
+            DraftClinicalRecord | None: Record if found, else None.
+        """
         return self._index.get(record_id)
 
     def list_by_state(self, state: ReviewState) -> list[DraftClinicalRecord]:
+        """
+        Purpose:
+            Returns records matching a specific workflow state.
+
+        Args:
+            state: ReviewState to filter by.
+
+        Returns:
+            list: Matching DraftClinicalRecord objects.
+        """
         return [r for r in self._index.values() if r.workflow_state == state]
 
     def list_all(self) -> list[DraftClinicalRecord]:
+        """
+        Purpose:
+            Returns all staged records.
+
+        Returns:
+            list: All DraftClinicalRecord objects.
+        """
         return list(self._index.values())
