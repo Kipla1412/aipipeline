@@ -1,9 +1,10 @@
 # Medical Knowledge Platform — Python dependencies
-# Install: pip install -r requirements.txt
+# Preferred install: uv sync  (uses pyproject.toml + uv.lock)
+# Alternative:        pip install -r requirements.txt
 #
 # Note: `filenest` is an internal SDK, not on PyPI.
 # Install it from the local checkout:
-#   pip install -e /home/kipla/filenest-python-sdk
+#   uv add filenest-python-sdk --source /home/kipla/filenest-python-sdk
 
 # ── Core ──
 pydantic>=2.0
@@ -34,3 +35,20 @@ pytest-asyncio>=0.23
 
 # ── FileNest internal SDK (local editable install) ──
 # -e /home/kipla/filenest-python-sdk
+
+# ============================================================
+# Airflow (separate venv — /home/kipla/airflow/venv)
+# ============================================================
+# Airflow runs from its OWN venv, NOT this project's .venv.
+# Install into the Airflow venv directly:
+#
+#   /home/airflow/venv/bin/pip install apache-airflow==3.1.5
+#   /home/airflow/venv/bin/pip install "apache-airflow-providers-standard"
+#   /home/airflow/venv/bin/pip install "apache-airflow-providers-postgres"
+#   /home/airflow/venv/bin/pip install -e /home/kipla/filenest-python-sdk
+#   /home/airflow/venv/bin/pip install psycopg2-binary sqlalchemy pydantic python-dotenv
+#
+# The DAGs load credentials from this project's .env (via python-dotenv),
+# so no Airflow Connections are required for FileNest/Postgres.
+# ============================================================
+

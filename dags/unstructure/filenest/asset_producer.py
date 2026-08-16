@@ -36,9 +36,9 @@ from airflow.providers.standard.operators.python import PythonOperator
 
 from dotenv import load_dotenv
 
-from src.components.connectors.filenest import FileNestConnector
-from src.components.extractors.filenest import FileNestDownloader
-from src.components.connectors.rdbms import RDBMSConnector
+from src.components.credentials.factory import CredentialFactory
+from src.components.connectors.factory import ConnectorFactory
+from src.components.extractors.factory import ExtractorFactory
 from src.components.repository.filenestrepository import FileNestRepository
 from src.components.repository.models import FileNestFileRecord, DownloadStatus
 from src.components.utils.config import PipelineConfig
@@ -73,23 +73,35 @@ def run_filenest_to_postgres(**kwargs) -> dict:
 
     Returns dict with counts so the log shows what happened.
     """
-    api_key = os.environ.get("FILENEST_API_KEY")
-    project_id = os.environ.get("FILENEST_PROJECT_ID")
-    base_url = os.environ.get("FILENEST_API_URL")
+    # Credentials from Airflow Connections (Admin → Connections)
+    #   filenest_conn:  extras = {api_key, project_id, base_url}
+    #   postgres_conn:  host, login, password, schema
+    filenest_conn_id = cfg.get("credentials", {}).get("filenest_conn_id", "filenest_conn")
+    postgres_conn_id = cfg.get("credentials", {}).get("postgres_conn_id", "postgres_conn")
+
+    filenest_creds = CredentialFactory.get_provider(mode="airflow", conn_id=filenest_conn_id).get_credentials()
+    api_key = filenest_creds.get("api_key") or os.environ.get("FILENEST_API_KEY")
+    project_id = filenest_creds.get("project_id") or os.environ.get("FILENEST_PROJECT_ID")
+    base_url = filenest_creds.get("base_url") or filenest_creds.get("host") or os.environ.get("FILENEST_API_URL")
+    if base_url and not base_url.startswith(("http://", "https://")):
+        base_url = f"https://{base_url}"
     if not (api_key and project_id and base_url):
         raise RuntimeError(
-            "FILENEST_API_KEY / FILENEST_PROJECT_ID / FILENEST_API_URL not set — check .env"
+            f"FileNest credentials missing — set extras on Airflow connection '{filenest_conn_id}' "
+            "(api_key, project_id, base_url) or FILENEST_* env vars"
         )
 
-    # 1. FileNest connector + downloader
+    # 1. FileNest connector + downloader (via factories)
     logger.info("Connecting to FileNest (project=%s)", project_id)
-    filenest = FileNestConnector({
+    filenest = ConnectorFactory.get_connector("filenest", {
         "api_key": api_key,
         "project_id": project_id,
         "base_url": base_url,
     })
     download_dir = cfg.get("filenest", {}).get("download_dir", "storage/temp")
-    downloader = FileNestDownloader(filenest, {"download_dir": download_dir})
+    downloader = ExtractorFactory.get_extractor(
+        "filenest", connection=filenest, config={"download_dir": download_dir}
+    )
 
     # 2. List files
     files = downloader.list_files()
@@ -97,14 +109,27 @@ def run_filenest_to_postgres(**kwargs) -> dict:
     if not files:
         return {"downloaded": 0, "total": 0}
 
-    # 3. PostgreSQL repository
-    rdbms_config = PipelineConfig().get_postgres_config()
-    connector = RDBMSConnector(rdbms_config)
+    # 3. PostgreSQL repository — credentials from Airflow connection
+    postgres_creds = CredentialFactory.get_provider(mode="airflow", conn_id=postgres_conn_id).get_credentials()
+    rdbms_config = {
+        "type": "postgresql",
+        "host": postgres_creds.get("host", "localhost"),
+        "port": int(postgres_creds.get("port") or 5432),
+        "database": postgres_creds.get("schema") or postgres_creds.get("database", "fhir-staging"),
+        "login": postgres_creds.get("login"),
+        "password": postgres_creds.get("password"),
+    }
+    connector = ConnectorFactory.get_connector("rdbms", rdbms_config)
     repo = FileNestRepository(connector)
 
+    # Known file ids already downloaded/processed — skip them (dedup)
+    known = {r.filenest_file_id for r in repo.list_all()}
     downloaded_count = 0
     try:
         for f in files:
+            if f.id in known:
+                logger.info("Skipping %s (%s) — already in PostgreSQL", f.filename, f.id[:8])
+                continue
             file_meta = downloader.get_file(f.id)
             logger.info("Processing: %s (%s)", file_meta.filename, file_meta.id[:8])
 

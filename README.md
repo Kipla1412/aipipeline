@@ -125,6 +125,27 @@ Medical Transformer (LLM + structured output)
 
 ## Installation
 
+**Option A — uv (recommended)** — uv manages everything from `pyproject.toml` + `uv.lock`:
+
+```bash
+# 1. Install uv (if not already installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+#    or: pip install uv
+
+# 2. Clone & sync dependencies (creates .venv, installs FileNest SDK from local path)
+git clone <repo-url>
+cd aiplatform
+uv sync
+
+# 3. Activate the venv
+source .venv/bin/activate
+
+# 4. Environment — copy the template and fill in real values
+cp .env.example .env
+```
+
+**Option B — pip / venv (classic)**
+
 ```bash
 git clone <repo-url>
 cd aiplatform
@@ -139,7 +160,13 @@ pip install -r requirements.txt
 pip install -e /home/kipla/filenest-python-sdk
 ```
 
-**Environment** — copy into `.env` at the project root:
+**Environment** — copy `.env.example` into `.env` at the project root:
+
+```bash
+cp .env.example .env
+```
+
+`.env.example` contains all required keys (OpenAI, FileNest, Postgres, ArangoDB, Neo4j) with placeholder values:
 
 ```bash
 # LLM
@@ -201,6 +228,19 @@ python3 tests/manual/test_filenest_download.py <file_id>
 
 Downloads land in `storage/temp/`.
 
+### FileNest — full flow (connector → URL → download → Postgres)
+
+```bash
+# Single file (first in list, or pass a file id)
+python3 tests/manual/test_filenest_full_flow.py
+python3 tests/manual/test_filenest_full_flow.py <file_id>
+
+# All files, one by one, in a single run
+python3 tests/manual/test_filenest_full_flow.py --all
+```
+
+Each file: signed URL → download to `storage/temp/` → save metadata to PostgreSQL → mark `downloaded`.
+
 ### Graph-RAG query
 
 ```bash
@@ -225,6 +265,32 @@ python3 check_neo4j.py
 | `gmail_data_pipeline` | `unstructure/gmail/gmail.py` | Gmail → chunk → embed → ES |
 | `health_data_pipeline` | `structure/health/health.py` | PostgreSQL → JSON → ES |
 | `spark_*` | `spark/`, `structure/aws/` | Spark ETL → ES |
+| `filenest_ingest` | `unstructure/filenest/asset_producer.py` | FileNest → list → download → Postgres → emit Asset |
+| `filenest_process` | `unstructure/filenest/asset_consumer.py` | Asset-triggered → extract → classify → transform |
+
+### Airflow setup
+
+Airflow runs from its **own venv** — separate from the project's uv venv:
+
+```bash
+# 1. Install Airflow 3 + providers into the Airflow venv
+/home/kipla/airflow/venv/bin/pip install apache-airflow==3.1.5
+/home/kipla/airflow/venv/bin/pip install "apache-airflow-providers-standard"
+/home/kipla/airflow/venv/bin/pip install "apache-airflow-providers-postgres"
+/home/kipla/airflow/venv/bin/pip install -e /home/kipla/filenest-python-sdk
+/home/kipla/airflow/venv/bin/pip install psycopg2-binary sqlalchemy pydantic python-dotenv
+
+# 2. Point Airflow at this repo's dags/ folder
+export AIRFLOW_HOME=/home/kipla/airflow
+#    dags_folder = /home/kipla/aipipeline/aiplatform/dags  (in airflow.cfg)
+
+# 3. The DAGs read credentials from this project's .env automatically.
+#    No Airflow Connections required for FileNest/Postgres.
+```
+
+The DAGs use **Airflow 3 Assets** (`from airflow.sdk import Asset`):
+- `filenest_ingest` (producer) emits an Asset when downloaded files exist in PostgreSQL
+- `filenest_process` (consumer) triggers on that Asset → processes the files
 
 ## Testing
 
@@ -240,6 +306,68 @@ python3 test_pdf_json.py "Chest X-Ray - Robert Chen.pdf"
 python3 test_emr_flow.py "Blood Report - Thomas Reynolds.pdf"   # stops before staging
 python3 test_emr_flow.py "CT_small.dcm"                         # DICOM
 ```
+
+## Verification
+
+Run these to confirm the pipeline is working end-to-end:
+
+### 1. Unit tests (mock-based, no credentials)
+
+```bash
+uv run --group dev python -m pytest tests/ -q
+```
+
+Targeted suites:
+
+```bash
+uv run --group dev python -m pytest tests/test_fhir_staging/ -q      # staging bridge (mapper/client/push)
+uv run --group dev python -m pytest tests/test_filenest/ -q          # FileNest connector/downloader
+uv run --group dev python -m pytest tests/test_filenest_repository/ -q  # PostgreSQL persistence
+```
+
+### 2. fhir-staging bridge check (requires the service running on :8002)
+
+```bash
+python3 tests/manual/check_staging.py
+```
+
+Checks: config reads `FHIR_STAGING_BASE_URL` → service health → client+mapper construct → create+PATCH a test record → list completed records. Prints `✓ fhir-staging bridge is WORKING` when green.
+
+### 3. Airflow DAG import check (requires Airflow venv)
+
+```bash
+/home/kipla/airflow/venv/bin/python -m py_compile dags/unstructure/filenest/asset_producer.py
+/home/kipla/airflow/venv/bin/python -m py_compile dags/unstructure/filenest/asset_consumer.py
+```
+
+### 4. View staged records
+
+```bash
+curl -s "http://localhost:8002/api/v1/staging-records/?status=completed"
+```
+
+Clean human-readable view (values + reference ranges):
+
+```bash
+curl -s "http://localhost:8002/api/v1/staging-records/10011" | python3 -c "
+import sys, json
+r = json.load(sys.stdin)
+print(f'Record {r[\"id\"]} — {r.get(\"attachment_title\")} [{r.get(\"status\")}]')
+for o in r.get('observations', []):
+    print(f'  {o.get(\"code_display\")}: {o.get(\"value_quantity_value\")} {o.get(\"value_quantity_unit\")}')
+"
+```
+
+Interactive API docs: `http://localhost:8002/docs`
+
+### Dependencies via uv
+
+```bash
+uv sync --group dev            # install everything (incl. dev: pytest)
+uv run python -c "import sys; print(sys.version)"   # sanity check
+```
+
+The internal `filenest-python-sdk` is pinned to a local path in `pyproject.toml` (`[tool.uv.sources]`) — `uv sync` installs it from there automatically.
 
 ## Storage Layout
 

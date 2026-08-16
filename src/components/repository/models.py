@@ -18,11 +18,12 @@ from pydantic import BaseModel, Field
 
 
 class DownloadStatus(StrEnum):
-    """Application download state for a FileNest file. Processing states are out of scope."""
+    """Application download state for a FileNest file."""
 
     PENDING = "pending"
     DOWNLOADING = "downloading"
     DOWNLOADED = "downloaded"
+    PROCESSED = "processed"
     FAILED = "failed"
 
 

@@ -37,6 +37,6 @@ class ExtractorFactory:
             mod = __import__(f"src.components.extractors.{mod_name}", fromlist=[cls_name])
             ExtractorFactory._loaded[extractor_type] = getattr(mod, cls_name)
 
-        if extractor_type in ("pdf", "image"):
+        if extractor_type in ("pdf", "image", "dicom"):
             return ExtractorFactory._loaded[extractor_type](config=config or {})
         return ExtractorFactory._loaded[extractor_type](connection=connection, config=config or {})

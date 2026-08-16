@@ -39,14 +39,14 @@ from airflow import DAG
 from airflow.sdk import Asset
 from airflow.providers.standard.operators.python import PythonOperator
 
-from src.components.connectors.rdbms import RDBMSConnector
+from src.components.credentials.factory import CredentialFactory
+from src.components.connectors.factory import ConnectorFactory
+from src.components.extractors.factory import ExtractorFactory
+from src.components.transformers.factory import TransformerFactory
 from src.components.repository.filenestrepository import FileNestRepository
+from src.components.repository.models import DownloadStatus
 from src.components.utils.config import PipelineConfig
 from src.components.utils.reader import load_yml
-from src.components.extractors.pymu_extractor import PyMuPdfExtractor
-from src.components.extractors.dicom import DicomExtractor
-from src.components.transformers.medical_transformer import MedicalTransformer
-from src.components.transformers.medical_classifier import MedicalClassifier
 
 logger = logging.getLogger(__name__)
 
@@ -96,20 +96,19 @@ def process_one_file(file_record: dict) -> dict:
     # 1. Extract (try/except — a corrupt file should skip, not fail the DAG)
     try:
         if is_dicom:
-            extractor = DicomExtractor({
+            extractor = ExtractorFactory.get_extractor("dicom", config={
                 "output_image_dir": str(settings.EXTRACTED_IMAGE_DIR),
                 "extract_preview": True,
             })
             extracted = extractor.extract(str(filepath))
         elif is_image:
-            from src.components.extractors.image_analyzer import ImageAnalyzer
-            image_analyzer = ImageAnalyzer({"api_key": settings.OPENAI_API_KEY})
-            description = asyncio.run(image_analyzer.extract([str(filepath)]))
             from src.components.extractors.schemas.extract_result import ExtractResult
+            image_analyzer = ExtractorFactory.get_extractor("image", config={"api_key": settings.OPENAI_API_KEY})
+            description = asyncio.run(image_analyzer.extract([str(filepath)]))
             extracted = ExtractResult(markdown=description, images=[str(filepath)])
             logger.info("Image analyzed via GPT-4V — %d chars", len(description))
         else:
-            extractor = PyMuPdfExtractor(settings.get_extractor_config())
+            extractor = ExtractorFactory.get_extractor("pdf", config=settings.get_extractor_config())
             extracted = extractor.extract(str(filepath))
     except Exception as exc:
         logger.warning("Skipping %s — extraction failed: %s", filepath.name, exc)
@@ -122,16 +121,16 @@ def process_one_file(file_record: dict) -> dict:
     logger.info("Extracted %s — %d chars, %d images",
                 filepath.name, len(extracted.markdown), len(extracted.images))
 
-    # 2. Classify
-    classifier = MedicalClassifier({
+    # 2. Classify (via TransformerFactory)
+    classifier = TransformerFactory.get_transformer("medical_classifier", config={
         "api_key": settings.OPENAI_API_KEY,
         "model": cfg.get("classification", {}).get("model", "gpt-4o-mini"),
     })
     report_type = asyncio.run(classifier.classify(extracted.markdown))
     logger.info("Classified %s → %s", filepath.name, report_type)
 
-    # 3. Transform (LLM → Clinical Domain Model with observations)
-    transformer = MedicalTransformer(settings.get_transformer_config())
+    # 3. Transform (LLM → Clinical Domain Model with observations, via TransformerFactory)
+    transformer = TransformerFactory.get_transformer("medical", config=settings.get_transformer_config())
     document = asyncio.run(transformer.transform(
         extracted.markdown,
         dicom_metadata=extracted.dicom_metadata if is_dicom else None,
@@ -156,6 +155,32 @@ def process_one_file(file_record: dict) -> dict:
     )
     logger.info("Saved Clinical Domain Model → %s", out_path)
 
+    # 5. Push to fhir-staging service (staging area for review/FHIR)
+    staging_record_id = None
+    if cfg.get("fhir_staging", {}).get("enabled", True):
+        try:
+            from src.components.fhir_staging.push_service import StagingPushService
+
+            base_url = cfg.get("fhir_staging", {}).get("base_url", "http://localhost:8002")
+            with StagingPushService(base_url=base_url) as staging_push:
+                updated = staging_push.push_document(
+                    file_id=file_record.get("filenest_file_id", ""),
+                    filename=file_record.get("filename", ""),
+                    content_type=file_record.get("content_type"),
+                    size_bytes=file_record.get("size_bytes"),
+                    document=document,
+                    patient_id=file_record.get("patient_id"),
+                    encounter_id=file_record.get("encounter_id"),
+                    service_request_id=file_record.get("service_request_id"),
+                )
+            staging_record_id = updated.get("id")
+            logger.info("Pushed to fhir-staging: record=%s observations=%d status=%s",
+                        staging_record_id, obs_count, updated.get("status"))
+        except Exception as exc:
+            logger.warning("fhir-staging push skipped for %s: %s", file_record.get("filename"), exc)
+    else:
+        logger.info("fhir-staging disabled — skipping push")
+
     return {
         "filename": file_record["filename"],
         "status": "processed",
@@ -170,17 +195,36 @@ def medical_processing(**kwargs) -> list:
     """Process every downloaded file from PostgreSQL through extract → transform."""
     logger.info("Medical file asset triggered — consumer DAG running.")
 
-    config = PipelineConfig().get_postgres_config()
-    connector = RDBMSConnector(config)
+    # Postgres credentials from Airflow connection (fallback to PipelineConfig env)
+    postgres_conn_id = cfg.get("credentials", {}).get("postgres_conn_id", "postgres_conn")
+    try:
+        postgres_creds = CredentialFactory.get_provider(mode="airflow", conn_id=postgres_conn_id).get_credentials()
+        config = {
+            "type": "postgresql",
+            "host": postgres_creds.get("host", "localhost"),
+            "port": int(postgres_creds.get("port") or 5432),
+            "database": postgres_creds.get("schema") or postgres_creds.get("database", "fhir_db"),
+            "login": postgres_creds.get("login"),
+            "password": postgres_creds.get("password"),
+        }
+    except Exception:
+        config = PipelineConfig().get_postgres_config()
+
+    connector = ConnectorFactory.get_connector("rdbms", config)
     repo = FileNestRepository(connector)
     try:
+        # Only process files downloaded but NOT yet processed (dedup)
         downloaded = [r for r in repo.list_all() if r.download_status == "downloaded"]
-        logger.info("PostgreSQL has %d downloaded file(s)", len(downloaded))
+        logger.info("PostgreSQL has %d unprocessed downloaded file(s)", len(downloaded))
 
         results = []
         for rec in downloaded:
             logger.info("Processing: %s", rec.filename)
             result = process_one_file(rec.model_dump())
+            # Mark processed only if the file was actually processed (not skipped)
+            if result.get("status") == "processed":
+                repo.update_download_status(rec.filenest_file_id, DownloadStatus.PROCESSED)
+                logger.info("Marked %s as processed", rec.filename)
             results.append(result)
 
         return results

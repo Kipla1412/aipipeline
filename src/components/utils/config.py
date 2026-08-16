@@ -47,6 +47,7 @@ class PipelineConfig(BaseSettings):
     POSTGRES_USER: str = Field("")
     POSTGRES_PASSWORD: str = Field("")
     POSTGRES_DB: str = Field("structured_data_pipeline")
+    FHIR_STAGING_BASE_URL: str = Field("http://localhost:8002")
 
     @model_validator(mode="after")
     def _fallback_api_key(self):
@@ -212,4 +213,17 @@ class PipelineConfig(BaseSettings):
             bool: True when host, user, and password are set.
         """
         return bool(self.POSTGRES_HOST and self.POSTGRES_USER and self.POSTGRES_PASSWORD)
+
+    def get_fhir_staging_config(self) -> dict:
+        """
+        Purpose:
+            Packages fhir-staging service connection settings into a config dict.
+
+        Returns:
+            dict: base_url, timeout — ready for FhirStagingClient.
+        """
+        return {
+            "base_url": self.FHIR_STAGING_BASE_URL,
+            "timeout": 30.0,
+        }
 

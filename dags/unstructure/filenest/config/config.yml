@@ -7,6 +7,11 @@ pipeline:
   retries: 1
   retry_delay_minutes: 5
 
+credentials:
+  mode: "airflow"                    # "airflow" = Airflow Connections, "local" = .env
+  filenest_conn_id: "filenest_conn_id"
+  postgres_conn_id: "postgres_conn_id"
+
 project_root: "/home/kipla/aipipeline/aiplatform"
 
 filenest:
@@ -34,10 +39,12 @@ transformation:
   prompt_file: "prompts/clinical_extraction.md"
   output_dir: "/home/kipla/aipipeline/aiplatform/storage/emr/transformed"
 
+fhir_staging:
+  base_url: "http://localhost:8002"
+  enabled: true
+
 openai:
   connection_id: "openai"
   timeout: 120
   max_retries: 3
-
-postgres:
-  backend: "local"   # local = PipelineConfig().get_postgres_config()
+  # Airflow connection id
