@@ -10,6 +10,7 @@ Schedule: daily, watches for new PDFs in NAS directory.
 """
 
 import sys
+import os
 from pathlib import Path
 _AI_PLATFORM = Path(__file__).resolve().parent.parent.parent.parent
 if str(_AI_PLATFORM) not in sys.path:
@@ -62,7 +63,8 @@ def fetch_openai_credentials(**kwargs: Any) -> dict:
 def scan_nas(**kwargs: Any) -> List[str]:
     cfg = load_config()
     nas_cfg = cfg.get("nas", {})
-    output_dir = cfg.get("transformation", {}).get("output_dir", "storage/emr/transformed")
+    out_cfg = cfg.get("transformation", {}).get("output_dir", "storage/emr/transformed")
+    output_dir = out_cfg if os.path.isabs(out_cfg) else os.path.join(_AI_PLATFORM, out_cfg)
 
     pdf_dir = Path(nas_cfg.get("directory", "/opt/airflow/data/storage/raw"))
     ext = nas_cfg.get("allowed_extensions", [".pdf", ".dcm"])
@@ -93,13 +95,15 @@ def extract_and_transform(**kwargs: Any) -> List[dict]:
     cfg = load_config()
     ext_cfg = cfg.get("extraction", {})
     trans_cfg = cfg.get("transformation", {})
+    img_out = ext_cfg.get("image_output_dir", "storage/images")
+    img_out = img_out if os.path.isabs(img_out) else os.path.join(_AI_PLATFORM, img_out)
 
     pdf_extractor = PyMuPdfExtractor({
         "extract_images": ext_cfg.get("extract_images", False),
-        "output_image_dir": ext_cfg.get("image_output_dir", "storage/images"),
+        "output_image_dir": img_out,
     })
     dicom_extractor = DicomExtractor({
-        "output_image_dir": ext_cfg.get("image_output_dir", "storage/images"),
+        "output_image_dir": img_out,
         "extract_preview": True,
     })
     classifier = MedicalClassifier({
@@ -145,7 +149,8 @@ def save_transformed(**kwargs: Any) -> None:
 
     import json
     cfg = load_config()
-    output_dir = Path(cfg.get("transformation", {}).get("output_dir", "storage/emr/transformed"))
+    out_cfg = cfg.get("transformation", {}).get("output_dir", "storage/emr/transformed")
+    output_dir = Path(out_cfg if os.path.isabs(out_cfg) else os.path.join(_AI_PLATFORM, out_cfg))
     output_dir.mkdir(parents=True, exist_ok=True)
 
     for doc in docs:

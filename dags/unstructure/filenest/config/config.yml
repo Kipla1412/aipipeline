@@ -12,10 +12,10 @@ credentials:
   filenest_conn_id: "filenest_conn_id"
   postgres_conn_id: "postgres_conn_id"
 
-project_root: "/home/kipla/aipipeline/aiplatform"
+project_root: "aiplatform"
 
 filenest:
-  download_dir: "storage/temp"
+  download_dir: "aiplatform/storage/temp"
   supported_extensions: [".pdf", ".dcm", ".png", ".jpg", ".jpeg", ".webp", ".tiff", ".bmp"]
 
 asset:
@@ -24,20 +24,20 @@ asset:
   group: "filenest"
 
 download:
-  download_dir: "/home/kipla/aipipeline/aiplatform/storage/temp"
+  download_dir: "aiplatform/storage/temp"
 
 extraction:
   extract_images: true
-  image_output_dir: "/home/kipla/aipipeline/aiplatform/storage/images"
+  image_output_dir: "aiplatform/storage/images"
 
 classification:
   model: "gpt-4o-mini"
-  prompt_file: "prompts/report_classification.md"
+  prompt_file: "aiplatform/src/components/prompts/report_classification.md"
 
 transformation:
   model: "gpt-4o-mini"
   prompt_file: "prompts/clinical_extraction.md"
-  output_dir: "/home/kipla/aipipeline/aiplatform/storage/emr/transformed"
+  output_dir: "aiplatform/storage/emr/transformed"
 
 fhir_staging:
   base_url: "http://localhost:8002"

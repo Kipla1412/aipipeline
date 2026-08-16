@@ -97,7 +97,8 @@ def scan_nas(**kwargs: Any) -> List[str]:
 
     pdf_dir = Path(nas_cfg.get("directory", "/opt/airflow/data/storage/raw"))
     ext = nas_cfg.get("allowed_extensions", [".pdf", ".dcm"])
-    staging_dir = staging_cfg.get("staging_dir", "storage/emr/staging")
+    stg_cfg = staging_cfg.get("staging_dir", "storage/emr/staging")
+    staging_dir = stg_cfg if os.path.isabs(stg_cfg) else os.path.join(_AI_PLATFORM, stg_cfg)
 
     config = {"nas_dir_path": str(pdf_dir), "allowed_extensions": ext}
     connector = NASConnector(config)
@@ -134,13 +135,15 @@ def extract_classify_transform(**kwargs: Any) -> List[Dict[str, Any]]:
     ext_cfg = cfg.get("extraction", {})
     cls_cfg = cfg.get("classification", {})
     trans_cfg = cfg.get("transformation", {})
+    img_out = ext_cfg.get("image_output_dir", "storage/images")
+    img_out = img_out if os.path.isabs(img_out) else os.path.join(_AI_PLATFORM, img_out)
 
     pdf_extractor = PyMuPdfExtractor({
         "extract_images": ext_cfg.get("extract_images", False),
-        "output_image_dir": ext_cfg.get("image_output_dir", "storage/images"),
+        "output_image_dir": img_out,
     })
     dicom_extractor = DicomExtractor({
-        "output_image_dir": ext_cfg.get("image_output_dir", "storage/images"),
+        "output_image_dir": img_out,
         "extract_preview": True,
     })
     classifier = MedicalClassifier({
@@ -192,7 +195,8 @@ def stage_for_review(**kwargs: Any) -> List[str]:
         return []
 
     cfg = load_config()
-    staging_dir = cfg.get("staging", {}).get("staging_dir", "storage/emr/staging")
+    stg_cfg = cfg.get("staging", {}).get("staging_dir", "storage/emr/staging")
+    staging_dir = stg_cfg if os.path.isabs(stg_cfg) else os.path.join(_AI_PLATFORM, stg_cfg)
 
     service = StagingService(staging_dir=staging_dir)
     record_ids = []

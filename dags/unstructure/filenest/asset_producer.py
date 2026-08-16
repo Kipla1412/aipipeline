@@ -99,6 +99,7 @@ def run_filenest_to_postgres(**kwargs) -> dict:
         "base_url": base_url,
     })
     download_dir = cfg.get("filenest", {}).get("download_dir", "storage/temp")
+    download_dir = os.path.join(_AI_PLATFORM, download_dir) if not os.path.isabs(download_dir) else download_dir
     downloader = ExtractorFactory.get_extractor(
         "filenest", connection=filenest, config={"download_dir": download_dir}
     )
