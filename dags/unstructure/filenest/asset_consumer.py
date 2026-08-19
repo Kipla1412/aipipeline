@@ -516,8 +516,10 @@ def medical_processing(**kwargs: Any) -> list[dict[str, Any]]:
                     # shape (code_display, value_quantity_*, category coding, ...).
                     from src.components.fhir_staging.mapper import StagingObservationMapper
 
+                    mapper = StagingObservationMapper()
+
                     observations = [
-                        StagingObservationMapper().map(obs)
+                        mapper.map(obs)
                         for obs in result.get("observations", [])
                         if isinstance(obs, dict)
                     ]
