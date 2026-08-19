@@ -28,6 +28,55 @@ class FhirStagingClient:
         self._base_url = (base_url or config["base_url"]).rstrip("/")
         self._client = httpx.Client(timeout=timeout or config["timeout"])
 
+    def list_pending_records(self) -> list[dict[str, Any]]:
+        """Get staging records waiting for processing."""
+        resp = self._client.get(
+            f"{self._base_url}/api/v1/staging-records/",
+            params={"status": "pending"},
+        )
+        resp.raise_for_status()
+
+        data = resp.json()
+
+        # The API returns:
+        # {
+        #     "total": 1,
+        #     "limit": 20,
+        #     "offset": 0,
+        #     "data": [...]
+        # }
+        return data.get("data", [])
+
+
+    def get_staging_record(self, staging_record_id: int) -> dict[str, Any]:
+        """Get one staging record by public staging_record_id."""
+        resp = self._client.get(
+            f"{self._base_url}/api/v1/staging-records/{staging_record_id}"
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+
+    def update_status(
+        self,
+        staging_record_id: int,
+        status: str,
+        error_message: str | None = None,
+    ) -> dict[str, Any]:
+        """Update the workflow status of an existing staging record."""
+        payload: dict[str, Any] = {
+            "status": status,
+            "updated_by": "aiplatform-agent",
+        }
+
+        if error_message:
+            payload["error_message"] = error_message
+
+        return self.patch_staging_record(
+            staging_record_id,
+            payload,
+        )
+
     def create_staging_record(self, payload: dict[str, Any]) -> dict[str, Any]:
         """POST /api/v1/staging-records/ — register a document for extraction.
 

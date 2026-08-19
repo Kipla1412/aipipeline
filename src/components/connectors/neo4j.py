@@ -15,8 +15,6 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from neo4j import GraphDatabase, Driver
-
 from .schemas.neo4j import Neo4jConfig
 
 logger = logging.getLogger(__name__)
@@ -32,10 +30,10 @@ class Neo4jConnector:
             config (dict): uri, username, password, database.
         """
         self.config = Neo4jConfig(**config)
-        self._driver: Driver | None = None
+        self._driver: Any | None = None
         logger.debug("Neo4jConnector initialized for uri: %s", self.config.uri)
 
-    def __call__(self) -> Driver:
+    def __call__(self) -> Any:
         """
         Purpose:
             Connects to Neo4j and returns the Driver instance.
@@ -56,6 +54,14 @@ class Neo4jConnector:
         """
         if self._driver is not None:
             return
+
+        try:
+            from neo4j import GraphDatabase
+        except ImportError as exc:
+            logger.exception("neo4j not installed. Run: pip install neo4j")
+            raise ImportError(
+                "neo4j is required for Neo4jConnector. Install: pip install neo4j"
+            ) from exc
 
         logger.info(
             "Connecting to Neo4j at %s (database=%s)",

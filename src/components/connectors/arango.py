@@ -15,9 +15,6 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from arango import ArangoClient
-from arango.database import StandardDatabase
-
 from .schemas.arango import ArangoDBConfig
 
 logger = logging.getLogger(__name__)
@@ -33,11 +30,11 @@ class ArangoDBConnector:
             config (dict): host, port, username, password, database, verify_certs.
         """
         self.config = ArangoDBConfig(**config)
-        self._client: ArangoClient | None = None
-        self._db: StandardDatabase | None = None
+        self._client: Any | None = None
+        self._db: Any | None = None
         logger.debug("ArangoDBConnector initialized for host: %s", self.config.host)
 
-    def __call__(self) -> StandardDatabase:
+    def __call__(self) -> Any:
         """
         Purpose:
             Connects to ArangoDB and returns the database handle.
@@ -56,6 +53,14 @@ class ArangoDBConnector:
         Raises:
             ConnectionError: If ArangoDB is unreachable or authentication fails.
         """
+        try:
+            from arango import ArangoClient
+        except ImportError as exc:
+            logger.exception("python-arango not installed. Run: pip install python-arango")
+            raise ImportError(
+                "python-arango is required for ArangoDBConnector. Install: pip install python-arango"
+            ) from exc
+
         host = self.config.host
         host = host.replace("https://", "").replace("http://", "").split("/")[0].split(":")[0]
         protocol = "https" if self.config.verify_certs else "http"
