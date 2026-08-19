@@ -145,7 +145,7 @@ medical_files_asset = Asset(
 # ===========================================================================
 
 
-def process_one_file(file_record: dict[str, Any]) -> dict[str, Any]:
+def process_one_file(file_record: dict[str, Any], openai_api_key: str | None = None) -> dict[str, Any]:
     """
     Executes the extraction, classification, and transformation pipeline on a single file.
 
@@ -202,6 +202,7 @@ def process_one_file(file_record: dict[str, Any]) -> dict[str, Any]:
         }
 
     settings = PipelineConfig()
+    api_key = openai_api_key or settings.OPENAI_API_KEY
 
     # -----------------------------------------------------------------------
     # 3. Extraction Phase
@@ -226,7 +227,7 @@ def process_one_file(file_record: dict[str, Any]) -> dict[str, Any]:
 
             image_analyzer = ExtractorFactory.get_extractor(
                 "image",
-                config={"api_key": settings.OPENAI_API_KEY},
+                config={"api_key": api_key},
             )
             description = asyncio.run(image_analyzer.extract([str(filepath)]))
             extracted = ExtractResult(
@@ -265,7 +266,7 @@ def process_one_file(file_record: dict[str, Any]) -> dict[str, Any]:
         classifier = TransformerFactory.get_transformer(
             "medical_classifier",
             config={
-                "api_key": settings.OPENAI_API_KEY,
+                "api_key": api_key,
                 "model": cfg.get("classification", {}).get("model", "gpt-4o-mini"),
             },
         )
@@ -285,9 +286,11 @@ def process_one_file(file_record: dict[str, Any]) -> dict[str, Any]:
     # 5. Transformation Phase
     # -----------------------------------------------------------------------
     try:
+        transformer_config = settings.get_transformer_config()
+        transformer_config["api_key"] = api_key
         transformer = TransformerFactory.get_transformer(
             "medical",
-            config=settings.get_transformer_config(),
+            config=transformer_config,
         )
         document = asyncio.run(
             transformer.transform(
@@ -374,6 +377,23 @@ def medical_processing(**kwargs: Any) -> list[dict[str, Any]]:
     """
     logger.info("Initiating medical file consumer process...")
     results: list[dict[str, Any]] = []
+
+    # 0. Fetch OpenAI credentials from Airflow connection (openai_conn_id)
+    openai_conn_id = cfg.get("credentials", {}).get("openai_conn_id", "openai")
+    try:
+        openai_creds = CredentialFactory.get_provider(
+            mode="airflow",
+            conn_id=openai_conn_id,
+        ).get_credentials()
+        openai_api_key = (
+            openai_creds.get("api_key")
+            or openai_creds.get("password")
+            or openai_creds.get("login")
+        )
+        logger.info("OpenAI credentials loaded from Airflow connection '%s'", openai_conn_id)
+    except Exception:
+        logger.warning("OpenAI connection '%s' not found — falling back to .env", openai_conn_id)
+        openai_api_key = None
 
     # 1. Fetch FHIR-Staging Credentials (Airflow Connection: host + port)
     fhir_staging_conn_id = cfg.get("credentials", {}).get(
@@ -502,7 +522,7 @@ def medical_processing(**kwargs: Any) -> list[dict[str, Any]]:
                     }
 
                     # Execute extraction, classification, and transformation
-                    result = process_one_file(file_record)
+                    result = process_one_file(file_record, openai_api_key=openai_api_key)
 
                     if result.get("status") != "processed":
                         error_msg = result.get("reason", "Unknown file transformation error")
