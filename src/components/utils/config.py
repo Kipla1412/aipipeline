@@ -48,6 +48,10 @@ class PipelineConfig(BaseSettings):
     POSTGRES_PASSWORD: str = Field("")
     POSTGRES_DB: str = Field("structured_data_pipeline")
     FHIR_STAGING_BASE_URL: str = Field("http://localhost:8002")
+    FHIR_STAGING_SUMMARY_FIELD: str = Field(
+        "summary",
+        description="fhir-staging ObservationInput field that carries the per-observation AI summary",
+    )
 
     @model_validator(mode="after")
     def _fallback_api_key(self):

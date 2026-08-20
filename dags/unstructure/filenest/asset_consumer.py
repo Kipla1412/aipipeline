@@ -362,6 +362,7 @@ def process_one_file(file_record: dict[str, Any], openai_api_key: str | None = N
         "observations": observations,
         "observations_count": obs_count,
         "diagnoses": diagnosis_count,
+        "summary": document.get("summary"),
         "output": str(out_path),
     }
 
@@ -543,12 +544,16 @@ def medical_processing(**kwargs: Any) -> list[dict[str, Any]]:
                         for obs in result.get("observations", [])
                         if isinstance(obs, dict)
                     ]
-                    patch_payload = {
+                    patch_payload: dict[str, Any] = {
                         "status": "completed",
                         "updated_by": "aiplatform-agent",
                         "observations": observations,
                         "processed_at": datetime.now(timezone.utc).isoformat(),
                     }
+                    # Document-level summary belongs on the top-level patch schema
+                    # (StagingMedicalRecordPatchSchema.summary) — not inside each observation.
+                    if result.get("summary"):
+                        patch_payload["summary"] = result["summary"]
 
                     updated = staging_client.patch_staging_record(
                         staging_record_id,

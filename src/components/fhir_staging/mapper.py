@@ -87,10 +87,11 @@ class StagingObservationMapper:
         if effective:
             result["effective_date_time"] = effective
 
-        # AI summary → summary (colleague added `summary` to the staging API schema)
-        ai_summary = obs.get("ai_summary")
-        if ai_summary:
-            result["summary"] = str(ai_summary)
+        # NOTE: per-observation AI summary is intentionally NOT mapped here.
+        # StagingObservationInput has no `summary` field (additionalProperties=false),
+        # so an extra key would 422. The document-level summary is sent at the
+        # top-level patch payload (StagingMedicalRecordPatchSchema.summary) in
+        # asset_consumer.py — not inside each observation.
 
         return result
 
