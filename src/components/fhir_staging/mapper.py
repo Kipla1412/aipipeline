@@ -87,6 +87,11 @@ class StagingObservationMapper:
         if effective:
             result["effective_date_time"] = effective
 
+        # AI summary → summary (colleague added `summary` to the staging API schema)
+        ai_summary = obs.get("ai_summary")
+        if ai_summary:
+            result["summary"] = str(ai_summary)
+
         return result
 
     @staticmethod

@@ -28,6 +28,9 @@ class Observation(BaseModel):
     interpretation: str | None = Field(
         None, description="low | normal | high | abnormal | critical"
     )
+    ai_summary: str | None = Field(
+        None, description="AI-generated 1-2 sentence clinical interpretation of this finding"
+    )
     body_site: str | None = Field(None, description="Body site where measurement was taken")
     method: str | None = Field(None, description="Method of measurement")
     effective_datetime: str | None = Field(None, description="Date/time of observation")

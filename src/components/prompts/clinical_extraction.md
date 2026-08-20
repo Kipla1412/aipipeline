@@ -72,6 +72,7 @@ For each observation, provide:
 - `unit` — unit of measure, e.g., "g/dL", "mmHg", "bpm"
 - `reference_range` — normal reference range if provided
 - `interpretation` — low, normal, high, abnormal, critical
+- `ai_summary` — 1-2 sentence plain-language clinical interpretation of this finding (what it means for the patient, e.g., "Hemoglobin is below the normal range, consistent with anemia — correlate clinically")
 - `body_site` — body site if applicable
 - `method` — measurement method if stated
 - `effective_datetime` — date/time of observation
