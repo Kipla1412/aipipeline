@@ -142,7 +142,7 @@ with DAG(
         ),
     },
     start_date=datetime(2026, 1, 1),
-    schedule=cfg.get("pipeline", {}).get("schedule", "@daily"),
+    schedule="*/1 * * * *",
     catchup=False,
     description=(
         "Asset trigger: check fhir-staging for pending records and "
