@@ -95,6 +95,10 @@ def check_and_emit(**kwargs) -> dict:
         Pure asset trigger: fetch pending fhir-staging records, log their
         file_ids, and emit the medical_files_asset via task outlets.
 
+        Attaches per-record metadata (file_id, patient_id, filename,
+        content_type) to the outlet event so downstream consumers can
+        process the documents directly without re-fetching.
+
         Does NOT download files, does NOT create a FileNest connector or
         downloader, does NOT create temporary files.
 
@@ -103,6 +107,8 @@ def check_and_emit(**kwargs) -> dict:
     """
     base_url = _fhir_staging_base_url()
     logger.info("FHIR-Staging endpoint: %s", base_url)
+
+    outlet_events = kwargs.get("outlet_events")
 
     with FhirStagingClient(base_url=base_url) as staging_client:
         records = staging_client.list_pending_records()
@@ -113,6 +119,8 @@ def check_and_emit(**kwargs) -> dict:
             staging_record_id = record.get("staging_record_id") or record.get("id")
             file_id = record.get("file_id")
             filename = record.get("attachment_title") or file_id
+            patient_id = record.get("patient_id")
+            content_type = record.get("content_type") or record.get("mime_type")
             logger.info(
                 "Pending record: staging_record_id=%s file_id=%s filename=%s",
                 staging_record_id,
@@ -121,6 +129,22 @@ def check_and_emit(**kwargs) -> dict:
             )
             if file_id:
                 file_ids.append(file_id)
+
+            # Attach the per-file metadata to the emitted asset event so the
+            # direct-document indexer can process the file without re-fetching.
+            if outlet_events is not None and file_id:
+                event_meta = {
+                    "file_id": file_id,
+                    "filename": filename,
+                    "patient_id": patient_id,
+                    "content_type": content_type,
+                    "staging_record_id": staging_record_id,
+                }
+                event_meta = {k: v for k, v in event_meta.items() if v is not None}
+                try:
+                    outlet_events[medical_files_asset].extra.update(event_meta)
+                except Exception:
+                    logger.warning("Could not attach event metadata for file_id=%s", file_id, exc_info=True)
 
         # The task declares outlets=[medical_files_asset]; Airflow emits the
         # Asset event when this task completes successfully, which schedules

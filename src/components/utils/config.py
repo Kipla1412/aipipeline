@@ -53,6 +53,30 @@ class PipelineConfig(BaseSettings):
         description="fhir-staging ObservationInput field that carries the per-observation AI summary",
     )
 
+    # ── Clinical Document Embedding / Indexing (document chat) ─────────────
+    EMBEDDING_PROVIDER: str = Field("jina")
+    JINA_MODEL: str = Field("jina-embeddings-v3")
+    JINA_DIMENSIONS: int = Field(1024)
+    JINA_TASK_PASSAGE: str = Field("retrieval.passage")
+    JINA_TASK_QUERY: str = Field("retrieval.query")
+    JINA_BATCH_SIZE: int = Field(50)
+    INDEXING_BATCH_SIZE: int = Field(50)
+    CHUNK_MAX_CHARS: int = Field(1500)
+    CHUNK_OVERLAP_CHARS: int = Field(150)
+    JINA_BASE_URL: str = Field("https://api.jina.ai/v1/")
+    JINA_API_KEY: str = Field("")
+    JINA_TIMEOUT: int = Field(60)
+    JINA_MAX_RETRIES: int = Field(5)
+    JINA_BASE_BACKOFF: float = Field(1.0)
+    OPENSEARCH_HOST: str = Field("")
+    OPENSEARCH_PORT: int = Field(9200)
+    OPENSEARCH_SCHEMA: str = Field("http")
+    OPENSEARCH_LOGIN: str = Field("")
+    OPENSEARCH_PASSWORD: str = Field("")
+    OPENSEARCH_VERIFY_CERTS: bool = Field(False)
+    OPENSEARCH_CA_CERTS: str | None = Field(None)
+    OPENSEARCH_INDEX_NAME: str = Field("clinical_documents")
+
     @model_validator(mode="after")
     def _fallback_api_key(self):
         """
@@ -230,4 +254,89 @@ class PipelineConfig(BaseSettings):
             "base_url": self.FHIR_STAGING_BASE_URL,
             "timeout": 30.0,
         }
+
+    def get_embedding_config(self) -> dict:
+        """
+        Purpose:
+            Packages embedding provider settings into a config dict.
+
+        Returns:
+            dict: provider, model, dimensions, tasks, batch_size,
+                  max_retries, base_backoff — ready for the embedding provider.
+        """
+        return {
+            "provider": self.EMBEDDING_PROVIDER,
+            "model": self.JINA_MODEL,
+            "dimensions": self.JINA_DIMENSIONS,
+            "tasks": {
+                "passage": self.JINA_TASK_PASSAGE,
+                "query": self.JINA_TASK_QUERY,
+            },
+            "batch_size": self.JINA_BATCH_SIZE,
+            "max_retries": self.JINA_MAX_RETRIES,
+            "base_backoff": self.JINA_BASE_BACKOFF,
+        }
+
+    def get_jina_config(self) -> dict:
+        """
+        Purpose:
+            Packages Jina API connection settings into a config dict.
+
+        Returns:
+            dict: base_url, api_key, timeout — ready for JinaConnector.
+        """
+        return {
+            "base_url": self.JINA_BASE_URL,
+            "api_key": self.JINA_API_KEY,
+            "timeout": self.JINA_TIMEOUT,
+        }
+
+    def get_opensearch_config(self) -> dict:
+        """
+        Purpose:
+            Packages OpenSearch connection settings into a config dict.
+
+        Returns:
+            dict: schema, host, port, login, password, verify_certs,
+                  ca_certs, index_name — ready for OpensearchConnector.
+        """
+        return {
+            "schema": self.OPENSEARCH_SCHEMA,
+            "host": self.OPENSEARCH_HOST,
+            "port": self.OPENSEARCH_PORT,
+            "login": self.OPENSEARCH_LOGIN,
+            "password": self.OPENSEARCH_PASSWORD,
+            "verify_certs": self.OPENSEARCH_VERIFY_CERTS,
+            "ca_certs": self.OPENSEARCH_CA_CERTS,
+            "index_name": self.OPENSEARCH_INDEX_NAME,
+        }
+
+    def get_chunking_config(self) -> dict:
+        """
+        Purpose:
+            Packages chunker settings into a config dict.
+
+        Returns:
+            dict: max_chars, overlap_chars — ready for ClinicalDocumentChunker.
+        """
+        return {
+            "max_chars": self.CHUNK_MAX_CHARS,
+            "overlap_chars": self.CHUNK_OVERLAP_CHARS,
+        }
+
+    @property
+    def indexing_enabled(self) -> bool:
+        """
+        Purpose:
+            Determines whether the document-chat indexing layer is configured.
+
+        Returns:
+            bool: True when Jina and OpenSearch are both fully configured.
+        """
+        return bool(
+            self.JINA_API_KEY
+            and self.OPENSEARCH_HOST
+            and self.OPENSEARCH_LOGIN
+            and self.OPENSEARCH_PASSWORD
+        )
 

@@ -139,6 +139,14 @@ medical_files_asset = Asset(
     group=cfg.get("asset", {}).get("group", "filenest"),
 )
 
+# Emitted after a Clinical Domain JSON is persisted, to trigger the
+# document-chat indexing DAG (dags/unstructure/indexing/asset_indexer.py).
+clinical_document_ready = Asset(
+    name=cfg.get("indexing_asset", {}).get("name", "clinical_document_ready"),
+    uri=cfg.get("indexing_asset", {}).get("uri", "file:///clinical/documents/ready"),
+    group=cfg.get("indexing_asset", {}).get("group", "indexing"),
+)
+
 
 # ===========================================================================
 # FILE PROCESSING ENGINE
@@ -301,6 +309,7 @@ def process_one_file(file_record: dict[str, Any], openai_api_key: str | None = N
         document["report_type"] = report_type
         document["source_file"] = filename
         document["filenest_file_id"] = file_id
+        document["patient_id"] = file_record.get("patient_id")
 
     except Exception as exc:
         logger.exception("Transformation stage failed for file: %s", filename)
@@ -358,11 +367,13 @@ def process_one_file(file_record: dict[str, Any], openai_api_key: str | None = N
     return {
         "filename": filename,
         "status": "processed",
+        "patient_id": file_record.get("patient_id"),
+        "file_id": file_id,
         "report_type": report_type,
         "observations": observations,
         "observations_count": obs_count,
         "diagnoses": diagnosis_count,
-        "summary": document.get("summary"),
+        # "summary": document.get("summary"),
         "output": str(out_path),
     }
 
@@ -630,4 +641,5 @@ with DAG(
     processing_task = PythonOperator(
         task_id="medical_extract_transform_task",
         python_callable=medical_processing,
+        outlets=[clinical_document_ready],
     )

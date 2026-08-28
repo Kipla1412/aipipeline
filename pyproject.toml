@@ -33,6 +33,9 @@ dependencies = [
     "python-arango>=8.0",
     "neo4j>=5.0",
 
+    # ── Search / vector indexing ──
+    "opensearch-py>=2.0",
+
     # ── FHIR ──
     "fhir.resources>=8.0",
 

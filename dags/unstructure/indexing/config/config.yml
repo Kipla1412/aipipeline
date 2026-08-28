@@ -1,0 +1,34 @@
+# Clinical Document Indexing Pipeline Configuration
+# DAGs: dags/unstructure/indexing/asset_indexer.py, direct_document_indexer.py
+
+pipeline:
+  description: "Clinical JSON / FileNest → Chunk → Jina Embedding → OpenSearch (document chat)"
+  retries: 1
+  retry_delay_minutes: 5
+
+project_root: "aiplatform"
+
+credentials:
+  mode: "airflow"                    # "airflow" = Airflow Connections, "local" = .env
+  jina_conn_id: "jina_api"
+  opensearch_conn_id: "opensearch_api"
+  filenest_conn_id: "filenest_conn_id"
+  openai_conn_id: "openai"
+
+asset:
+  name: "clinical_document_ready"
+  uri: "file:///clinical/documents/ready"
+  group: "indexing"
+
+indexing:
+  # Directory where the medical consumer writes Clinical Domain Model JSON
+  input_dir: "aiplatform/storage/emr/transformed"
+  # Track indexed files here so re-runs skip already-processed documents
+  state_file: "aiplatform/storage/indexing/processed.json"
+  # Direct-indexing: where FileNest files are downloaded before extraction
+  temp_dir: "aiplatform/storage/temp"
+  # Direct-indexing: where PDF/DICOM extracted images are saved (temporary)
+  images_dir: "aiplatform/storage/temp/images"
+  # Embedding / OpenSearch settings are read from PipelineConfig (.env)
+  # unless overridden by Airflow Connections (see credentials above).
+  batch_size: 50

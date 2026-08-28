@@ -67,7 +67,7 @@ class OpensearchConnector:
         Raises:
             ConnectionError: If the OpenSearch cluster is unreachable.
         """
-        protocol = self.config.schema_type
+        protocol = self.config.schema
         host = self.config.host
         port = self.config.port
         verify_certs = self.config.verify_certs

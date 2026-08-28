@@ -9,7 +9,7 @@ from .schemas import (
     JinaEmbeddingRequest,
     JinaEmbeddingResponse,
 )
-from src.components.connectors import JinaConnector
+from src.components.connectors.jina import JinaConnector
 
 logger = logging.getLogger(__name__)
 

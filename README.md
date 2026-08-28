@@ -121,6 +121,7 @@ Medical Transformer (LLM + structured output)
 | **graphbuilder/** | Pure graph construction (MedicalDocument → Graph) + pluggable persistence | `medical_graph_builder.py`, `models.py`, `repository/{json,arango,neo4j}_repository.py` |
 | **metadata/** | Searchable entity index (JSON with atomic writes) | `models.py`, `json_repository.py`, `generator.py` |
 | **emr/** | Clinical staging, human review, audit trail, FHIR mapping | `staging/`, `review/`, `fhir/` (mappers + bundle), `repository/` |
+| **indexing/** | Document-chat indexing: Clinical JSON → semantic chunks → Jina embeddings → OpenSearch | `chunker.py`, `indexer.py`, `factory.py`, `embeddings/jina.py`, `repository/opensearch.py` |
 | **utils/** | LLM client, Pydantic config, resilience | `llm.py`, `config.py`, `resilience.py` |
 
 ## Installation
@@ -255,6 +256,30 @@ python3 check_arango.py
 python3 check_neo4j.py
 ```
 
+### Document chat indexing (Clinical JSON → chunks → embeddings → OpenSearch)
+
+The indexing layer is separate from FHIR persistence. It converts Clinical Domain Model JSON into semantic, structure-aware chunks (one per summary/diagnosis/observation/medication/procedure/imaging/section), embeds them via the existing Jina provider, and upserts them into OpenSearch with deterministic chunk IDs (idempotent — re-indexing never duplicates).
+
+```bash
+# Unit tests (mock-based, no credentials)
+python3 -m pytest tests/test_custom/test_indexing/ -q
+
+# Build an indexer from config (.env): chunker + Jina + OpenSearch
+python3 -c "
+from src.components.indexing import IndexingFactory
+indexer = IndexingFactory.create_indexer()
+print(indexer.index(CLINICAL_JSON, {'patient_id': '10001', 'file_id': 'ABC123', 'source_file': 'r.pdf'}))
+"
+```
+
+Retrieval filters by `patient_id` AND `file_id` (stored as structured OpenSearch keyword fields) before kNN vector search, so document chat answers are grounded to a specific patient + document.
+
+Two Airflow DAGs drive this:
+- `clinical_document_indexer` — indexes already-transformed Clinical JSON (`storage/emr/transformed/*.json`)
+- `direct_document_indexer` — downloads a FileNest file directly, extracts (PDF/image/DICOM), and indexes the extracted text (no classification, no Clinical Domain transformation, no FHIR)
+
+Embedding/OpenSearch/chunking settings live in `.env` (`JINA_*`, `OPENSEARCH_*`, `CHUNK_*`); in Airflow, Jina/OpenSearch/FileNest/OpenAI credentials come from Airflow Connections (`jina_api`, `opensearch_api`, `filenest_conn_id`, `openai`).
+
 ## Airflow DAGs (`dags/`)
 
 | DAG | Path | Flow |
@@ -267,6 +292,8 @@ python3 check_neo4j.py
 | `spark_*` | `spark/`, `structure/aws/` | Spark ETL → ES |
 | `filenest_ingest` | `unstructure/filenest/asset_producer.py` | FileNest → list → download → Postgres → emit Asset |
 | `filenest_process` | `unstructure/filenest/asset_consumer.py` | Asset-triggered → extract → classify → transform |
+| `clinical_document_indexer` | `unstructure/indexing/asset_indexer.py` | Clinical JSON → chunk → Jina embed → OpenSearch |
+| `direct_document_indexer` | `unstructure/indexing/direct_document_indexer.py` | FileNest download → extract → chunk → Jina embed → OpenSearch (no classification/transform) |
 
 ### Airflow setup
 

@@ -32,6 +32,12 @@ asset:
   uri: "file:///medical/files/available"
   group: "filenest"
 
+# Emitted after Clinical JSON is persisted — triggers the indexing DAG.
+indexing_asset:
+  name: "clinical_document_ready"
+  uri: "file:///clinical/documents/ready"
+  group: "indexing"
+
 download:
   download_dir: "storage/temp"
 
