@@ -373,7 +373,7 @@ def process_one_file(file_record: dict[str, Any], openai_api_key: str | None = N
         "observations": observations,
         "observations_count": obs_count,
         "diagnoses": diagnosis_count,
-        # "summary": document.get("summary"),
+        "summary": document.get("summary"),
         "output": str(out_path),
     }
 

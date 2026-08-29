@@ -1,4 +1,9 @@
+import logging
+
 import pandas as pd
+
+logger = logging.getLogger(__name__)
+
 
 class ExcelToCsvUtil:
     """
@@ -9,7 +14,7 @@ class ExcelToCsvUtil:
         self.engine = engine
 
     def convert(self, input_path: str, output_path: str) -> None:
-        print(f"Processing: {input_path}")
+        logger.info("Processing: %s", input_path)
         
         # Using a context manager ensures the file handle is closed properly
         with pd.ExcelFile(input_path, engine=self.engine) as xls:
@@ -19,4 +24,4 @@ class ExcelToCsvUtil:
             # Writing to CSV for lighter downstream processing
             df.to_csv(output_path, index=False)
             
-        print(f"Successfully saved to: {output_path}")
+        logger.info("Successfully saved to: %s", output_path)
